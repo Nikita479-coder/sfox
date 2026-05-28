@@ -366,6 +366,7 @@ function App() {
   const [databaseLeaderboard, setDatabaseLeaderboard] = useState([]);
   const [usingSupabase, setUsingSupabase] = useState(false);
   const [bootstrapReady, setBootstrapReady] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [newReferralName, setNewReferralName] = useState("");
   const [newReferralRank, setNewReferralRank] = useState("pioneer");
@@ -418,6 +419,7 @@ function App() {
 
     const bootstrap = async () => {
       try {
+        setBootstrapError("");
         const bootstrapState = {
           ...defaultState,
           ...(telegramIdentity
@@ -443,6 +445,7 @@ function App() {
         setProfileId(result.profileId || null);
       } catch (error) {
         console.error("Failed to load app bootstrap", error);
+        setBootstrapError(error?.message || "Unknown Supabase bootstrap error");
       } finally {
         if (!cancelled) {
           setBootstrapReady(true);
@@ -793,7 +796,9 @@ function App() {
       : "00:00:00";
   const phoneHeaderDate = formatPhoneHeaderDate(state.profileCreatedAt);
   const profileDisplayName = telegramIdentity?.firstName || state.telegramFirstName || state.username;
-  const lastSyncValue = state.profileUpdatedAt || state.profileCreatedAt;
+  const connectedFallbackTime = usingSupabase ? new Date().toISOString() : null;
+  const joinedValue = state.profileCreatedAt || state.profileUpdatedAt || connectedFallbackTime;
+  const lastSyncValue = state.profileUpdatedAt || state.profileCreatedAt || connectedFallbackTime;
 
   const leftActions = [
     { icon: "N", key: "news", label: "News", value: "Feed" },
@@ -1678,6 +1683,19 @@ function App() {
                       ? " Changes are being written to your real database."
                       : " Connect Supabase to make these values live across sessions and devices."}
                   </p>
+                  <p>
+                    <strong>{usingSupabase ? "Connected to Supabase" : "Local fallback mode"}</strong>
+                  </p>
+                  {!usingSupabase && (
+                    <p>
+                      <strong>Supabase env:</strong> {hasSupabaseConfig ? "present" : "missing"}
+                    </p>
+                  )}
+                  {bootstrapError && (
+                    <p>
+                      <strong>Supabase error:</strong> {bootstrapError}
+                    </p>
+                  )}
                 </article>
 
                 <article className="dashboard-card">
@@ -1688,8 +1706,14 @@ function App() {
 
                 <article className="dashboard-card">
                   <span>Joined</span>
-                  <strong>{formatFullDateTime(state.profileCreatedAt)}</strong>
-                  <p>Account creation time from the live profile record.</p>
+                  <strong>{formatFullDateTime(joinedValue)}</strong>
+                  <p>
+                    {state.profileCreatedAt
+                      ? "Account creation time from the live profile record."
+                      : usingSupabase
+                        ? "Live profile is connected. Creation time has not been returned yet, so the current session time is shown."
+                        : "Account creation time is only available once Supabase is connected."}
+                  </p>
                 </article>
 
                 <article className="dashboard-card">
@@ -1698,7 +1722,9 @@ function App() {
                   <p>
                     {state.profileUpdatedAt
                       ? "Latest profile update stored in Supabase."
-                      : "Current profile record time from Supabase."}
+                      : usingSupabase
+                        ? "Live profile is connected. Current session time is shown until the first explicit profile update is returned."
+                        : "Latest sync is only available once Supabase is connected."}
                   </p>
                 </article>
 
