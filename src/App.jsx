@@ -316,6 +316,7 @@ function getSessionEnd(miningStartedAt) {
 
 function App() {
   const [telegramIdentity, setTelegramIdentity] = useState(null);
+  const [telegramReady, setTelegramReady] = useState(false);
 
   useEffect(() => {
     let attempts = 0;
@@ -325,12 +326,15 @@ function App() {
       const identity = getTelegramIdentity();
       if (identity) {
         setTelegramIdentity(identity);
+        setTelegramReady(true);
         return;
       }
 
       attempts += 1;
       if (attempts < maxAttempts) {
         window.setTimeout(tryResolveIdentity, 250);
+      } else {
+        setTelegramReady(true);
       }
     };
 
@@ -408,6 +412,10 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
+    if (!telegramReady) {
+      return undefined;
+    }
+
     const bootstrap = async () => {
       try {
         const bootstrapState = {
@@ -447,7 +455,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [telegramIdentity]);
+  }, [telegramIdentity, telegramReady]);
 
   useEffect(() => {
     if (!usingSupabase || !profileId) return undefined;
