@@ -793,6 +793,7 @@ function App() {
       : "00:00:00";
   const phoneHeaderDate = formatPhoneHeaderDate(state.profileCreatedAt);
   const profileDisplayName = telegramIdentity?.firstName || state.telegramFirstName || state.username;
+  const lastSyncValue = state.profileUpdatedAt || state.profileCreatedAt;
 
   const leftActions = [
     { icon: "N", key: "news", label: "News", value: "Feed" },
@@ -1657,7 +1658,7 @@ function App() {
           )}
 
           {activeTab === "profile" && (
-            <section className="app-page">
+            <section className="app-page profile-page">
               <div className="app-page-header">
                 <span className="app-page-eyebrow">Profile page</span>
                 <h2>Miner Profile</h2>
@@ -1693,8 +1694,12 @@ function App() {
 
                 <article className="dashboard-card">
                   <span>Last sync</span>
-                  <strong>{formatFullDateTime(state.profileUpdatedAt)}</strong>
-                  <p>Latest profile update stored in Supabase.</p>
+                  <strong>{formatFullDateTime(lastSyncValue)}</strong>
+                  <p>
+                    {state.profileUpdatedAt
+                      ? "Latest profile update stored in Supabase."
+                      : "Current profile record time from Supabase."}
+                  </p>
                 </article>
 
                 <article className="dashboard-card">

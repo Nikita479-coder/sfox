@@ -916,6 +916,37 @@ input::placeholder {
   gap: 20px;
 }
 
+.profile-page {
+  width: min(100%, 420px);
+  margin: 0 auto;
+}
+
+.profile-page .app-page-header h2 {
+  font-size: 32px;
+}
+
+.profile-page .app-page-header p {
+  max-width: none;
+}
+
+.profile-page .dashboard-panels {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.profile-page .dashboard-card {
+  padding: 20px;
+}
+
+.profile-page .dashboard-card strong {
+  font-size: 28px;
+  word-break: break-word;
+}
+
+.profile-page .dashboard-card p {
+  line-height: 1.5;
+}
+
 .reading-layout {
   display: grid;
   gap: 20px;
