@@ -16,6 +16,7 @@ import {
   subscribeToAppData,
   updateReferralMember,
 } from "./lib/appData";
+import { hasSupabaseConfig } from "./lib/supabase";
 import { EARLY_ADOPTER_REQUIREMENT_LABEL, NETWORK_START_AT, isEarlyAdopterDate } from "./lib/earlyAdopter";
 import { getTelegramIdentity } from "./lib/telegram";
 
