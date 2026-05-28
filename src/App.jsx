@@ -16,7 +16,7 @@ import {
   subscribeToAppData,
   updateReferralMember,
 } from "./lib/appData";
-import { hasSupabaseConfig } from "./lib/supabase";
+import { EARLY_ADOPTER_REQUIREMENT_LABEL, NETWORK_START_AT, isEarlyAdopterDate } from "./lib/earlyAdopter";
 import { getTelegramIdentity } from "./lib/telegram";
 
 const STORAGE_KEY = "sfox-react-platform-state";
@@ -99,7 +99,7 @@ const defaultState = {
   selectedRank: "auto",
   activeReferrals: 0,
   totalReferrals: 0,
-  joinedEarly: false,
+  joinedEarly: isEarlyAdopterDate(),
   totalMined: 0,
   miningStartedAt: null,
   sessionClaimed: true,
@@ -235,6 +235,10 @@ function RankHeroBadge({ rankKey, label }) {
     );
   }
 
+  if (rankKey === "miner") {
+    return null;
+  }
+
   return (
     <div className="rank-hero-badge rank-hero-fallback">
       <span>{visual.short}</span>
@@ -366,7 +370,6 @@ function App() {
   const [databaseLeaderboard, setDatabaseLeaderboard] = useState([]);
   const [usingSupabase, setUsingSupabase] = useState(false);
   const [bootstrapReady, setBootstrapReady] = useState(false);
-  const [bootstrapError, setBootstrapError] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [newReferralName, setNewReferralName] = useState("");
   const [newReferralRank, setNewReferralRank] = useState("pioneer");
@@ -419,7 +422,6 @@ function App() {
 
     const bootstrap = async () => {
       try {
-        setBootstrapError("");
         const bootstrapState = {
           ...defaultState,
           ...(telegramIdentity
@@ -445,7 +447,6 @@ function App() {
         setProfileId(result.profileId || null);
       } catch (error) {
         console.error("Failed to load app bootstrap", error);
-        setBootstrapError(error?.message || "Unknown Supabase bootstrap error");
       } finally {
         if (!cancelled) {
           setBootstrapReady(true);
@@ -794,6 +795,7 @@ function App() {
     : mining.claimReady
       ? "24:00:00"
       : "00:00:00";
+  const earlyAdopterStartLabel = formatFullDateTime(NETWORK_START_AT);
   const phoneHeaderDate = formatPhoneHeaderDate(state.profileCreatedAt);
   const profileDisplayName = telegramIdentity?.firstName || state.telegramFirstName || state.username;
   const connectedFallbackTime = usingSupabase ? new Date().toISOString() : null;
@@ -1005,7 +1007,7 @@ function App() {
               <section className="phone-stage">
                 <div className="phone-header">
                   <div>
-                    <strong>#{state.username}</strong>
+                    <strong>{profileDisplayName}</strong>
                     <small>{phoneHeaderDate}</small>
                   </div>
                   <div className="phone-header-pill">{statusText}</div>
@@ -1490,13 +1492,16 @@ function App() {
                     </div>
                   </article>
 
-                  <article className="ranks-logic-card">
+                <article className="ranks-logic-card">
                     <span className="reading-kicker">How it works</span>
                     <h3>The rank system is simple once you split it into 3 parts.</h3>
                     <div className="ranks-logic-list">
                       <div className="ranks-logic-item">
                         <strong>1. Unlock the rank</strong>
-                        <p>Reach the required active referrals, or qualify for Pioneer as an early user.</p>
+                        <p>
+                          Reach the required active referrals, or qualify for Pioneer by joining before July 1, 2026.
+                          The network start date is {earlyAdopterStartLabel}, and pre-launch accounts count too.
+                        </p>
                       </div>
                       <div className="ranks-logic-item">
                         <strong>2. Keep the fixed boost</strong>
@@ -1538,7 +1543,7 @@ function App() {
                               <strong>{value.label}</strong>
                               <span>
                                 {value.requiresEarly
-                                  ? "Registered within the first 30 days"
+                                  ? EARLY_ADOPTER_REQUIREMENT_LABEL
                                   : `${value.minReferrals}+ active referrals`}
                               </span>
                             </div>
@@ -1668,8 +1673,7 @@ function App() {
                 <span className="app-page-eyebrow">Profile page</span>
                 <h2>Miner Profile</h2>
                 <p>
-                  Your account state is {usingSupabase ? "live from Supabase" : "running in local fallback mode"}.
-                  {telegramIdentity ? " Telegram Mini App identity is active." : " Telegram Mini App identity is not detected in this browser."}
+                  Your account details, network identity, and account timing in one place.
                 </p>
               </div>
 
@@ -1678,54 +1682,27 @@ function App() {
                   <span>Profile</span>
                   <strong>{profileDisplayName}</strong>
                   <p>
-                    This profile tracks mined balance, rank mode, halving epoch, referral totals, and claim
-                    status. {usingSupabase
-                      ? " Changes are being written to your real database."
-                      : " Connect Supabase to make these values live across sessions and devices."}
+                    This profile tracks your mined balance, rank mode, halving epoch, referral totals,
+                    and claim activity across the network.
                   </p>
-                  <p>
-                    <strong>{usingSupabase ? "Connected to Supabase" : "Local fallback mode"}</strong>
-                  </p>
-                  {!usingSupabase && (
-                    <p>
-                      <strong>Supabase env:</strong> {hasSupabaseConfig ? "present" : "missing"}
-                    </p>
-                  )}
-                  {bootstrapError && (
-                    <p>
-                      <strong>Supabase error:</strong> {bootstrapError}
-                    </p>
-                  )}
                 </article>
 
                 <article className="dashboard-card">
                   <span>Username</span>
                   <strong>@{state.telegramUsername || state.username}</strong>
-                  <p>{state.telegramUserId ? `Telegram ID ${state.telegramUserId}` : "Browser fallback user"}</p>
+                  <p>{state.telegramUserId ? `Telegram ID ${state.telegramUserId}` : "Telegram account"}</p>
                 </article>
 
                 <article className="dashboard-card">
                   <span>Joined</span>
                   <strong>{formatFullDateTime(joinedValue)}</strong>
-                  <p>
-                    {state.profileCreatedAt
-                      ? "Account creation time from the live profile record."
-                      : usingSupabase
-                        ? "Live profile is connected. Creation time has not been returned yet, so the current session time is shown."
-                        : "Account creation time is only available once Supabase is connected."}
-                  </p>
+                  <p>Account creation time for your network profile.</p>
                 </article>
 
                 <article className="dashboard-card">
                   <span>Last sync</span>
                   <strong>{formatFullDateTime(lastSyncValue)}</strong>
-                  <p>
-                    {state.profileUpdatedAt
-                      ? "Latest profile update stored in Supabase."
-                      : usingSupabase
-                        ? "Live profile is connected. Current session time is shown until the first explicit profile update is returned."
-                        : "Latest sync is only available once Supabase is connected."}
-                  </p>
+                  <p>Latest profile update stored for this account.</p>
                 </article>
 
                 <article className="dashboard-card">

@@ -1,4 +1,5 @@
 import { supabase, hasSupabaseConfig } from "./supabase";
+import { isEarlyAdopterDate } from "./earlyAdopter";
 
 export const fallbackAnnouncement = null;
 export const fallbackLeaderboardEntries = [];
@@ -20,6 +21,7 @@ function formatPublishedLabel(value) {
 function buildProfilePayload(defaultState, identity) {
   const username = identity?.username || defaultState.username;
   const inviteCode = identity?.inviteCode || defaultState.inviteCode;
+  const joinedEarly = isEarlyAdopterDate();
 
   return {
     username,
@@ -31,7 +33,7 @@ function buildProfilePayload(defaultState, identity) {
     telegram_photo_url: identity?.photoUrl || null,
     telegram_language_code: identity?.languageCode || null,
     telegram_is_premium: identity?.isPremium || false,
-    joined_early: defaultState.joinedEarly,
+    joined_early: joinedEarly,
     selected_rank: defaultState.selectedRank,
     current_rank: "miner",
     epoch: defaultState.epoch,
@@ -124,12 +126,14 @@ function mapLeaderboardRow(row) {
 }
 
 function mapProfileState(profile, referralSummary, defaultState) {
+  const joinedEarly = isEarlyAdopterDate(profile.created_at);
+
   return {
     epoch: profile.epoch,
     selectedRank: profile.selected_rank,
     activeReferrals: referralSummary.activeReferrals,
     totalReferrals: referralSummary.totalReferrals,
-    joinedEarly: profile.joined_early,
+    joinedEarly,
     totalMined: Number(profile.total_mined),
     miningStartedAt: profile.mining_started_at ? new Date(profile.mining_started_at).getTime() : null,
     sessionClaimed: profile.session_claimed,
@@ -223,6 +227,8 @@ export async function loadAppBootstrap(defaultState, identity = null) {
 export async function persistProfileState({ state, currentRank, currentRate, profileId, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return;
 
+  const joinedEarly = isEarlyAdopterDate(state.profileCreatedAt);
+
   const payload = {
     username: state.username,
     invite_code: state.inviteCode,
@@ -233,7 +239,7 @@ export async function persistProfileState({ state, currentRank, currentRate, pro
     telegram_photo_url: identity?.photoUrl || null,
     telegram_language_code: identity?.languageCode || null,
     telegram_is_premium: identity?.isPremium || false,
-    joined_early: state.joinedEarly,
+    joined_early: joinedEarly,
     selected_rank: state.selectedRank,
     current_rank: currentRank,
     epoch: state.epoch,
