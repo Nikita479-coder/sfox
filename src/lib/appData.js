@@ -4,6 +4,7 @@ import { isEarlyAdopterDate } from "./earlyAdopter";
 export const fallbackAnnouncement = null;
 export const fallbackLeaderboardEntries = [];
 export const fallbackReferralMembers = [];
+const SESSION_HOURS = 24;
 
 function formatPublishedLabel(value) {
   if (!value) return "";
@@ -167,12 +168,26 @@ async function ensureProfile(defaultState, identity) {
   });
 }
 
+function isReferralProfileActivelyMining(profile) {
+  if (!profile?.mining_started_at) return false;
+
+  const startedAt = new Date(profile.mining_started_at).getTime();
+  if (Number.isNaN(startedAt)) return false;
+
+  const sessionEndsAt = startedAt + SESSION_HOURS * 60 * 60 * 1000;
+  return Date.now() < sessionEndsAt;
+}
+
 function mapReferralRow(row) {
+  const effectiveActive = row.referred_profile
+    ? isReferralProfileActivelyMining(row.referred_profile)
+    : row.is_active;
+
   return {
     id: row.id,
     username: row.referred_username,
     rank: row.referred_rank,
-    is_active: row.is_active,
+    is_active: effectiveActive,
     last_reminded_at: row.last_reminded_at,
   };
 }
@@ -262,7 +277,9 @@ async function fetchAppSnapshot(profile, defaultState) {
       .limit(1),
     supabase
       .from("referrals")
-      .select("id, referred_username, referred_rank, is_active, last_reminded_at")
+      .select(
+        "id, referred_username, referred_rank, is_active, last_reminded_at, referred_profile:profiles!referrals_referred_profile_id_fkey(mining_started_at)"
+      )
       .eq("referrer_profile_id", profile.id)
       .order("created_at", { ascending: true }),
     supabase
