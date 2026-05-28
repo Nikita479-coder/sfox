@@ -382,6 +382,7 @@ function App() {
   const [now, setNow] = useState(Date.now());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedReferralLink, setCopiedReferralLink] = useState(false);
   const [activeTab, setActiveTab] = useState("news");
   const [activityFilter, setActivityFilter] = useState("all");
   const [rankSort, setRankSort] = useState("desc");
@@ -654,6 +655,16 @@ function App() {
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const handleCopyReferralLink = async () => {
+    try {
+      await navigator.clipboard.writeText(buildTelegramReferralLink(state.inviteCode));
+      setCopiedReferralLink(true);
+      window.setTimeout(() => setCopiedReferralLink(false), 1200);
+    } catch {
+      setCopiedReferralLink(false);
     }
   };
 
@@ -1294,6 +1305,13 @@ function App() {
                     </div>
                     <button className="primary-button team-copy-button" type="button" onClick={handleCopyCode}>
                       {copied ? "Copied" : "Copy invite"}
+                    </button>
+                    <button
+                      className="ghost-button team-copy-button"
+                      type="button"
+                      onClick={handleCopyReferralLink}
+                    >
+                      {copiedReferralLink ? "Link copied" : "Copy referral link"}
                     </button>
                     <button className="ghost-button team-copy-button" type="button" onClick={openTelegramReferralLink}>
                       Open Telegram invite
