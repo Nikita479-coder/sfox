@@ -339,6 +339,14 @@ input::placeholder {
   font-weight: 800;
 }
 
+.phone-header-subline {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .phone-header-pill {
   padding: 8px 12px;
   border-radius: var(--radius-pill);
@@ -1053,6 +1061,14 @@ input::placeholder {
   font-weight: 900;
   letter-spacing: -0.06em;
   word-break: break-word;
+}
+
+.team-invite-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .team-copy-button {

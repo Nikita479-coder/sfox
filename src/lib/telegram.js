@@ -12,6 +12,15 @@ function buildInviteCode(username, telegramUserId) {
   return `SFOX-${baseName.slice(0, 8)}-${idTail}`;
 }
 
+export const TELEGRAM_BOT_USERNAME =
+  sanitizeUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "sfoxnetworkbot") ||
+  "sfoxnetworkbot";
+
+export function buildTelegramReferralLink(inviteCode) {
+  const code = String(inviteCode || "").trim();
+  return `https://t.me/${TELEGRAM_BOT_USERNAME}?startapp=ref-${encodeURIComponent(code)}`;
+}
+
 export function getTelegramIdentity() {
   if (typeof window === "undefined") return null;
 
@@ -40,5 +49,9 @@ export function getTelegramIdentity() {
     languageCode: user.language_code || "",
     isPremium: Boolean(user.is_premium),
     inviteCode: buildInviteCode(username, user.id),
+    startParam:
+      webApp.initDataUnsafe?.start_param ||
+      webApp.initDataUnsafe?.startapp ||
+      "",
   };
 }

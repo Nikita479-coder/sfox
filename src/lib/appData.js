@@ -47,6 +47,74 @@ function buildProfilePayload(defaultState, identity) {
   };
 }
 
+function normalizeInviteCode(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function parseReferralStartParam(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const normalized = raw.replace(/^ref[-_:]?/i, "");
+  return normalizeInviteCode(normalized);
+}
+
+async function linkReferralToProfile({ profile, referralCode }) {
+  const normalizedCode = normalizeInviteCode(referralCode);
+  if (!normalizedCode) return profile;
+  if (profile.referred_by_profile_id) return profile;
+  if (normalizeInviteCode(profile.invite_code) === normalizedCode) return profile;
+
+  const { data: inviter, error: inviterError } = await supabase
+    .from("profiles")
+    .select("id, username, current_rank")
+    .eq("invite_code", normalizedCode)
+    .maybeSingle();
+
+  if (inviterError) throw inviterError;
+  if (!inviter) {
+    throw new Error("Referral code not found");
+  }
+  if (inviter.id === profile.id) {
+    throw new Error("You cannot use your own referral code");
+  }
+
+  const { data: updatedProfile, error: profileUpdateError } = await supabase
+    .from("profiles")
+    .update({
+      referred_by_profile_id: inviter.id,
+      referral_code_applied_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id)
+    .select("*")
+    .single();
+
+  if (profileUpdateError) throw profileUpdateError;
+
+  const { data: existingReferral, error: existingReferralError } = await supabase
+    .from("referrals")
+    .select("id")
+    .eq("referrer_profile_id", inviter.id)
+    .eq("referred_profile_id", profile.id)
+    .maybeSingle();
+
+  if (existingReferralError) throw existingReferralError;
+
+  if (!existingReferral) {
+    const { error: referralInsertError } = await supabase.from("referrals").insert({
+      referrer_profile_id: inviter.id,
+      referred_profile_id: profile.id,
+      referred_username: updatedProfile.username,
+      referred_rank: updatedProfile.current_rank || "miner",
+      is_active: false,
+    });
+
+    if (referralInsertError) throw referralInsertError;
+  }
+
+  return updatedProfile;
+}
+
 async function ensureProfile(defaultState, identity) {
   const matcher = identity?.telegramUserId
     ? supabase.from("profiles").select("*").eq("telegram_user_id", identity.telegramUserId)
@@ -56,6 +124,8 @@ async function ensureProfile(defaultState, identity) {
 
   if (fetchError) throw fetchError;
   const insertPayload = buildProfilePayload(defaultState, identity);
+
+  const referralCodeFromTelegram = parseReferralStartParam(identity?.startParam);
 
   if (existing) {
     const profilePatch = {
@@ -78,7 +148,10 @@ async function ensureProfile(defaultState, identity) {
       .single();
 
     if (updateError) throw updateError;
-    return updated;
+    return linkReferralToProfile({
+      profile: updated,
+      referralCode: referralCodeFromTelegram,
+    });
   }
 
   const { data: created, error: insertError } = await supabase
@@ -88,7 +161,10 @@ async function ensureProfile(defaultState, identity) {
     .single();
 
   if (insertError) throw insertError;
-  return created;
+  return linkReferralToProfile({
+    profile: created,
+    referralCode: referralCodeFromTelegram,
+  });
 }
 
 function mapReferralRow(row) {
@@ -117,6 +193,7 @@ function mapAnnouncementRow(row) {
 function mapLeaderboardRow(row) {
   return {
     username: row.username,
+    displayName: row.display_name || row.telegram_first_name || row.username,
     rank: row.current_rank,
     mined: Number(row.total_mined),
     active: row.active_referrals,
@@ -125,7 +202,14 @@ function mapLeaderboardRow(row) {
   };
 }
 
-function mapProfileState(profile, referralSummary, defaultState) {
+function getProfileDisplayName(row) {
+  if (!row) return "";
+  const firstName = String(row.telegram_first_name || "").trim();
+  if (firstName) return firstName;
+  return row.username || "";
+}
+
+function mapProfileState(profile, referralSummary, defaultState, inviterProfile = null) {
   const joinedEarly = isEarlyAdopterDate(profile.created_at);
 
   return {
@@ -147,15 +231,28 @@ function mapProfileState(profile, referralSummary, defaultState) {
     telegramPhotoUrl: profile.telegram_photo_url || "",
     profileCreatedAt: profile.created_at || null,
     profileUpdatedAt: profile.updated_at || null,
+    referredByProfileId: profile.referred_by_profile_id || null,
+    referralCodeAppliedAt: profile.referral_code_applied_at || null,
+    inviterDisplayName: getProfileDisplayName(inviterProfile),
+    inviterUsername: inviterProfile?.username || "",
     roleCount: defaultState.roleCount,
   };
 }
 
 async function fetchAppSnapshot(profile, defaultState) {
+  const inviterPromise = profile.referred_by_profile_id
+    ? supabase
+        .from("profiles")
+        .select("username, telegram_first_name")
+        .eq("id", profile.referred_by_profile_id)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
   const [
     { data: announcementRows, error: announcementError },
     { data: referralRows, error: referralsError },
     { data: leaderboardRows, error: leaderboardError },
+    { data: inviterRow, error: inviterError },
   ] = await Promise.all([
     supabase
       .from("announcements")
@@ -170,20 +267,22 @@ async function fetchAppSnapshot(profile, defaultState) {
       .order("created_at", { ascending: true }),
     supabase
       .from("leaderboard")
-      .select("username, current_rank, total_mined, active_referrals, total_referrals, current_rate")
+      .select("username, telegram_first_name, display_name, current_rank, total_mined, active_referrals, total_referrals, current_rate")
       .limit(25),
+    inviterPromise,
   ]);
 
   if (announcementError) throw announcementError;
   if (referralsError) throw referralsError;
   if (leaderboardError) throw leaderboardError;
+  if (inviterError) throw inviterError;
 
   const mappedReferrals = (referralRows || []).map(mapReferralRow);
   const referralSummary = buildReferralSummary(mappedReferrals);
 
   return {
     profileId: profile.id,
-    state: mapProfileState(profile, referralSummary, defaultState),
+    state: mapProfileState(profile, referralSummary, defaultState, inviterRow),
     announcement: announcementRows?.[0] ? mapAnnouncementRow(announcementRows[0]) : null,
     referrals: mappedReferrals,
     leaderboard: (leaderboardRows || []).map(mapLeaderboardRow),
@@ -240,6 +339,8 @@ export async function persistProfileState({ state, currentRank, currentRate, pro
     telegram_language_code: identity?.languageCode || null,
     telegram_is_premium: identity?.isPremium || false,
     joined_early: joinedEarly,
+    referred_by_profile_id: state.referredByProfileId || null,
+    referral_code_applied_at: state.referralCodeAppliedAt || null,
     selected_rank: state.selectedRank,
     current_rank: currentRank,
     epoch: state.epoch,
@@ -261,6 +362,23 @@ export async function persistProfileState({ state, currentRank, currentRate, pro
   if (error) {
     throw error;
   }
+}
+
+export async function applyReferralCode({ profileId, code }) {
+  if (!hasSupabaseConfig || !supabase) return null;
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .single();
+
+  if (error) throw error;
+
+  return linkReferralToProfile({
+    profile,
+    referralCode: code,
+  });
 }
 
 export async function createReferralMember({ profileId, username, rank }) {

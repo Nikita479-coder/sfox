@@ -5,6 +5,7 @@ import baronLogo from "../baron.png";
 import presidentLogo from "../president.png";
 import titanLogo from "../titan.png";
 import {
+  applyReferralCode,
   buildReferralSummary,
   createReferralMember,
   fallbackLeaderboardEntries,
@@ -18,7 +19,7 @@ import {
 } from "./lib/appData";
 import { hasSupabaseConfig } from "./lib/supabase";
 import { EARLY_ADOPTER_REQUIREMENT_LABEL, NETWORK_START_AT, isEarlyAdopterDate } from "./lib/earlyAdopter";
-import { getTelegramIdentity } from "./lib/telegram";
+import { buildTelegramReferralLink, getTelegramIdentity } from "./lib/telegram";
 
 const STORAGE_KEY = "sfox-react-platform-state";
 const SESSION_HOURS = 24;
@@ -115,6 +116,10 @@ const defaultState = {
   telegramPhotoUrl: "",
   profileCreatedAt: null,
   profileUpdatedAt: null,
+  referredByProfileId: null,
+  referralCodeAppliedAt: null,
+  inviterDisplayName: "",
+  inviterUsername: "",
   roleCount: 1,
 };
 
@@ -390,6 +395,7 @@ function App() {
   const [newReferralRank, setNewReferralRank] = useState("pioneer");
   const [teamMessage, setTeamMessage] = useState("");
   const [teamBusy, setTeamBusy] = useState(false);
+  const [manualReferralCode, setManualReferralCode] = useState("");
 
   const openExternalTarget = (target) => {
     if (!target) return false;
@@ -407,6 +413,19 @@ function App() {
 
     window.open(target, "_blank", "noopener,noreferrer");
     return true;
+  };
+
+  const openTelegramReferralLink = () => {
+    const deepLink = buildTelegramReferralLink(state.inviteCode);
+    const webApp = window.Telegram?.WebApp;
+
+    try {
+      webApp?.openTelegramLink?.(deepLink);
+    } catch {
+      // Ignore and fall back to browser open below.
+    }
+
+    window.open(deepLink, "_blank", "noopener,noreferrer");
   };
 
   useEffect(() => {
@@ -796,6 +815,45 @@ function App() {
     }
   };
 
+  const handleApplyReferralCode = async () => {
+    const trimmedCode = manualReferralCode.trim().toUpperCase();
+    if (!trimmedCode) {
+      setTeamMessage("Enter a referral code first.");
+      return;
+    }
+    if (!profileId) {
+      setTeamMessage("Your profile is still loading.");
+      return;
+    }
+    if (state.referredByProfileId) {
+      setTeamMessage("A referral has already been linked to this account.");
+      return;
+    }
+
+    setTeamBusy(true);
+    setTeamMessage("");
+
+    try {
+      const updatedProfile = await applyReferralCode({
+        profileId,
+        code: trimmedCode,
+      });
+
+      setState((current) => ({
+        ...current,
+        referredByProfileId: updatedProfile.referred_by_profile_id || null,
+        referralCodeAppliedAt: updatedProfile.referral_code_applied_at || null,
+      }));
+      setManualReferralCode("");
+      setTeamMessage("Referral code applied.");
+    } catch (error) {
+      console.error("Failed to apply referral code", error);
+      setTeamMessage(error?.message || "Could not apply referral code.");
+    } finally {
+      setTeamBusy(false);
+    }
+  };
+
   const statusText = mining.isRunning
     ? "Mining now"
     : mining.claimReady
@@ -917,6 +975,7 @@ function App() {
     const source = usingSupabase ? databaseLeaderboard : fallbackLeaderboardEntries;
     const currentUserEntry = {
       username: state.username,
+      displayName: profileDisplayName,
       rank: eligibleRankKey,
       mined: state.totalMined,
       active: state.activeReferrals,
@@ -1034,6 +1093,11 @@ function App() {
                   <div>
                     <strong>{profileDisplayName}</strong>
                     <small>{phoneHeaderDate}</small>
+                    {state.inviterDisplayName && (
+                      <small className="phone-header-subline">
+                        Invited by {state.inviterDisplayName}
+                      </small>
+                    )}
                   </div>
                   <div className="phone-header-pill">{statusText}</div>
                 </div>
@@ -1222,9 +1286,17 @@ function App() {
                     <div className="team-invite-card">
                       <span>Invite code</span>
                       <strong>{state.inviteCode}</strong>
+                      {state.inviterDisplayName && (
+                        <small className="team-invite-note">
+                          Invited by {state.inviterDisplayName}
+                        </small>
+                      )}
                     </div>
                     <button className="primary-button team-copy-button" type="button" onClick={handleCopyCode}>
                       {copied ? "Copied" : "Copy invite"}
+                    </button>
+                    <button className="ghost-button team-copy-button" type="button" onClick={openTelegramReferralLink}>
+                      Open Telegram invite
                     </button>
                   </div>
                 </article>
@@ -1343,6 +1415,32 @@ function App() {
                     {teamMessage && <p className="team-feedback">{teamMessage}</p>}
                   </article>
                 </section>
+
+                {!state.referredByProfileId && (
+                  <section className="team-action-grid">
+                    <article className="team-add-card">
+                      <span className="reading-kicker">Join with a code</span>
+                      <h3>Use a referral code if you joined without one</h3>
+                      <p>Paste a valid SFOX invite code to attach this account to a referrer.</p>
+                      <div className="team-add-form">
+                        <input
+                          type="text"
+                          placeholder="SFOX-XXXX-0000"
+                          value={manualReferralCode}
+                          onChange={(event) => setManualReferralCode(event.target.value)}
+                        />
+                        <button
+                          className="primary-button team-add-button"
+                          type="button"
+                          onClick={handleApplyReferralCode}
+                          disabled={teamBusy}
+                        >
+                          Apply code
+                        </button>
+                      </div>
+                    </article>
+                  </section>
+                )}
 
                 <article className="home-referrals team-directory">
                   <div className="team-directory-head">
@@ -1620,7 +1718,7 @@ function App() {
                       >
                         <span className="leaderboard-place">#{entry.position}</span>
                         <RankBadge rankKey={entry.rank} label={rankMap[entry.rank].label} />
-                        <strong>{entry.username}</strong>
+                        <strong>{entry.displayName || entry.username}</strong>
                         <small>{rankMap[entry.rank].label}</small>
                         <div className="leaderboard-podium-metric">
                           <span>Mined</span>
@@ -1657,10 +1755,10 @@ function App() {
                           <div className="leaderboard-row-left">
                             <span className="leaderboard-rank">#{entry.position}</span>
                             <RankBadge rankKey={entry.rank} label={rankMap[entry.rank].label} />
-                            <div className="leaderboard-user">
-                              <strong>{entry.username}</strong>
-                              <span>{rankMap[entry.rank].label} miner</span>
-                            </div>
+                          <div className="leaderboard-user">
+                            <strong>{entry.displayName || entry.username}</strong>
+                            <span>{rankMap[entry.rank].label} miner</span>
+                          </div>
                           </div>
                           <div className="leaderboard-row-metrics">
                             <div>
@@ -1830,6 +1928,14 @@ function App() {
                   <strong>{state.inviteCode}</strong>
                   <p>Used for referral growth and team onboarding.</p>
                 </article>
+
+                {state.inviterDisplayName && (
+                  <article className="dashboard-card">
+                    <span>Invited by</span>
+                    <strong>{state.inviterDisplayName}</strong>
+                    <p>{state.inviterUsername ? `@${state.inviterUsername}` : "Referral link connected"}</p>
+                  </article>
+                )}
               </section>
             </section>
           )}
