@@ -315,7 +315,28 @@ function getSessionEnd(miningStartedAt) {
 }
 
 function App() {
-  const telegramIdentity = useMemo(() => getTelegramIdentity(), []);
+  const [telegramIdentity, setTelegramIdentity] = useState(null);
+
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    const tryResolveIdentity = () => {
+      const identity = getTelegramIdentity();
+      if (identity) {
+        setTelegramIdentity(identity);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < maxAttempts) {
+        window.setTimeout(tryResolveIdentity, 250);
+      }
+    };
+
+    tryResolveIdentity();
+  }, []);
+
   const initialState = useMemo(
     () => ({
       ...loadState(),
@@ -368,6 +389,21 @@ function App() {
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    if (!telegramIdentity) return;
+
+    setState((current) => ({
+      ...current,
+      username: telegramIdentity.username,
+      inviteCode: telegramIdentity.inviteCode,
+      telegramUserId: telegramIdentity.telegramUserId,
+      telegramUsername: telegramIdentity.username,
+      telegramFirstName: telegramIdentity.firstName,
+      telegramLastName: telegramIdentity.lastName,
+      telegramPhotoUrl: telegramIdentity.photoUrl,
+    }));
+  }, [telegramIdentity]);
 
   useEffect(() => {
     let cancelled = false;
