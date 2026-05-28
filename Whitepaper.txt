@@ -1,0 +1,190 @@
+SFOX Network Tokenomics
+Abstract
+We propose a gamified tokenomics model for SFOX that combines a time-based halving emission
+schedule with a multi-tier referral bonus system. Mining begins at 1 SFOX per hour per user, with the base
+rate halving every two weeks to enforce rapid scarcity and reward early adopters. In parallel, users gain
+permanent rank multipliers and per-referral mining boosts as they recruit active participants. Each rank
+(Pioneer, Lord, Baron, President, Titan) unlocks a large base reward boost (150–5000%) and a small
+percentage bonus per active referral above a fixed “free capacity” threshold. Only active (daily mining)
+referrals count, ensuring real engagement. This hybrid design (inspired by models like Pi and Tau Network
+) creates strong viral incentives and fast expansion while capping total supply via aggressive
+halvings.
+Introduction
+Many recent networks (e.g. Pi, Tau) use referral and trust mechanisms to drive growth . Our goal is
+to leverage these concepts to bootstrap SFOX adoption: early miners receive outsized rewards, but the
+system rapidly decays per-user issuance to prevent runaway inflation. The halving schedule introduces
+strict scarcity (modeled after Bitcoin and social-mining projects ), while the rank/referral tiers gamify
+participation and reward community builders. Altogether, this tokenomics enforces virality with control: only
+genuine expansion beyond set thresholds generates extra tokens, limiting concentration and inflation risk.
+Emission Schedule (Halving)
+Base Rate: 1 SFOX per hour, per active miner at launch.
+Halving: Every 2 weeks, the base rate is cut in half (e.g. after 14 days from launch, 1 SFOX/h → 0.5
+SFOX/h, then 0.25, etc.). This fixed-period halving mimics mechanisms in Pi and other projects
+ to produce geometric decay in supply. (Equivalently, after n halvings the rate is $1/2^n$ SFOX/h.)
+Effect: This schedule yields extreme scarcity: only a few hundred thousand SFOX are minted in the
+first few months even with network growth. (For example, a simple model with linear user growth
+yields ≈0.14 million SFOX after 180 days.) The aggressive decay means the network must rapidly
+expand to sustain any mining output, aligning incentives with early adoption .
+Token Supply: By analogy to other token designs, we can define a maximum supply S split into
+(M=Mining, R=Referral, D=Development). For example, Pi used a formula S = M+R+D with R
+proportional to M . We propose similarly allocating a fixed percentage to team/developers
+(e.g. 20%), with 80% for community mining. All mined SFOX come only from the mining pool; there
+are no private sales or unlocks.
+This halving-driven issuance has precedent: Ziktalk’s whitepaper defines dual halvings by time and by user
+growth , and Pi Network halves rewards at adoption milestones . In both cases, new supply slows
+dramatically as the network scales, which balances the high referral-based inflation in early phases.
+1 2
+3 2
+4
+•
+•
+4
+1
+•
+4
+•
+2 3
+4 1
+1
+Rank-Based Referral System
+Every SFOX user is automatically in a referral tree. When a user (“referrer”) signs up new participants
+(“referees”) who actively mine, the referrer permanently increases their mining rate. The system has 5 ranks
+with thresholds and bonuses:
+Pioneer (Early Adopter) – Requirement: join in first 30 days. Rank Boost: +150% (i.e. ×2.5 mining).
+Referral Bonus: +10% per active referral above 10. (First 10 referrals yield no extra boost.)
+Lord – Requirement: ≥10 active referrals. Rank Boost: +500% (×6.0). Referral Bonus: +12% per active
+referral above 50. (First 50 referrals are “structural” and give no extra.)
+Baron – Requirement: ≥50 active referrals. Rank Boost: +1500% (×16.0). Referral Bonus: +15% per
+active referral above 100. (First 100 referrals give no extra.)
+President – Requirement: ≥100 active referrals. Rank Boost: +3000% (×31.0). Referral Bonus: +20% per
+active referral above 500. (First 500 referrals no extra.)
+Titan – Requirement: ≥500 active referrals. Rank Boost: +5000% (×51.0). Referral Bonus: +25% per
+active referral above 500. (Only referrals #501+ generate bonus.)
+Each rank’s “free capacity” threshold means that only referrals beyond that number yield incremental
+bonus. For instance, a Titan with 800 active referrals has 300 “overflow” referrals: bonus = 300×25% =
++7500% (i.e. ×76.0 mining). If only 700 are active, overflow = 200 → +5000% (×51.0); 500 active referrals
+yields overflow=0 (×51.0 mining). This overflow rule prevents small teams from compounding unlimited
+referral benefits. All referrals must be active (mining daily) – inactive referrals count for 0% bonus.
+Mining Rate Formula
+Let B = base rate (SFOX/hour, with halving), P = rank multiplier (e.g. +50.0 for Titan’s +5000%), r = per-referral
+bonus (0.10–0.25), C = free-capacity threshold, and A = max(active_referrals – C, 0). Then each user’s mining
+rate is:
+R = B × (1 + P + r × A)
+All additions above are linear fractions of B. For example, a Lord (P=5.0) with 60 active referrals (C=50, A=10)
+mines at
+$R = B × (1 + 5.0 + 0.12×10) = B × (1 + 5.0 + 1.2) = 7.2 B$.
+If $B=1$ SFOX/h, that is 7.2 SFOX/h. In contrast, a Pioneer (P=1.5) with 10 active referrals (all within free
+capacity) gets $R = B×(1+1.5) = 2.5 B$ (no referral bonus). See Table below for rank details.
+Rank Requirement Rank Boost (+
+%)
+Referral Bonus Free
+Capacity
+Pioneer
+First 30 days (early
+adopters) +150% (×2.5)
++10% per active referral
+above 10 10
+Lord ≥10 active referrals +500% (×6.0)
++12% per active referral
+above 50 50
+•
+•
+•
+•
+•
+2
+Rank Requirement Rank Boost (+
+%)
+Referral Bonus Free
+Capacity
+Baron ≥50 active referrals +1500%
+(×16.0)
++15% per active referral
+above 100 100
+President ≥100 active referrals +3000%
+(×31.0)
++20% per active referral
+above 500 500
+Titan ≥500 active referrals +5000%
+(×51.0)
++25% per active referral
+above 500 500
+Table: Rank tiers. Referral bonuses only apply to active referrals beyond the “Free Capacity”.
+Incentive Effects
+This tiered system yields strong viral growth incentives and social competition. Early users (Pioneers) get a
+permanent boost for being first movers. Those who recruit many users climb ranks and achieve
+exponential scaling: beyond each threshold, every additional active referral adds a multiplicative boost.
+Critically, the overflow-only rule ensures that small groups cannot exploit referral loops: only growth above
+each rank’s base network yields rewards. As a result, the “Titan” rank remains an elite goal — only teams
+that recruit 501+ beyond 500 (i.e. 1,001+ total) reach it, reinforcing its prestige and making expansion
+necessary to maintain power.
+Only active referrals count toward bonuses. Inactivity resets one’s effective bonus (contribution=0) for that
+day. This aligns mining rewards with real engagement and thwarts passive or “zombie” accounts.
+This design aligns with principles seen in other projects: for example, Tau Network explicitly ties referral
+rewards to mining supply (R = r·M) , and Pi’s whitepaper similarly allocates referral tokens to share
+growth incentives . By capping referral rewards to overflow growth, we avoid unchecked compounding
+that would otherwise create infinite issuance loops.
+Economic Analysis
+Under this model, early phases produce relatively high output per miner, but output per user rapidly
+declines due to halvings. For instance, after just 4 halvings (8 weeks), the base rate is only 1/16 its original
+value. Thus, even a Titan’s gross rate collapses over time unless new users join to replace falling base. In
+practice, aggressive halving caps total SFOX supply. (A rough simulation shows under linear growth the
+majority of supply is minted in the first 2–3 months; after ~6 months nearly all emission ceases.)
+Referrals can amplify short-term rewards: a Titan with overflow bonuses mines ~51× base (plus referral
+extra). However, because base decays exponentially, all rewards plateau. For example, a Titan with 500
+active referrals initially mines 176 SFOX/h; after 14 days this drops to 88 SFOX/h, then 44, then 22, etc. Even
+continuous recruitment only slightly raises this tail. Hence long-term inflation remains bounded.
+Nonetheless, the multipliers are extreme, so unchecked they could cause early centralization. As ranks
+shift slowly (only based on active referrals), top builders accumulate far more SFOX than latecomers.
+2
+5
+3
+Moreover, if the network stalls, later signups get almost no reward. To mitigate these risks, we recommend
+the following anti-inflation and stability measures:
+Fixed Supply Cap: Define a maximum token supply (e.g. S SFOX). Mining halts when reached. Similar
+to Pi’s eventual 100 billion cap , a cap prevents infinite issuance.
+Diminishing Returns: Beyond Tier 5, reduce incremental bonuses. For example, after 1,000 total
+referrals, each extra active referral yields a smaller boost than +25%. This limits runaway growth
+from large teams.
+Referral Bonus Decay: Gradually lower r for each rank after some time or total team size, to shrink
+the gap between early/late joiners.
+Burn Mechanism: Sink a portion of harvested SFOX (e.g. a small burn on transfers or an “unlock
+schedule”) to counter inflation.
+Retention Locks: Introduce time-locks (vesting) on rewards so that rapid mining surges do not
+immediately flood the market.
+These controls are common in modern token designs. Our whitepaper model already enforces some
+discipline via halvings, but additional guards will ensure economic stability and fairness as the community
+grows.
+Conclusion
+The SFOX tokenomics model merges a deflationary halving emission schedule with an overflow-based
+referral engine. This design rewards early community builders with outsized mining power while tightly
+bounding total supply. It creates competitive leaderboards and urgency around each halving event,
+leveraging network effects for rapid growth. At the same time, the free-capacity rule and active-only
+condition prevent simple compounding and sybil-style inflation. If paired with a clear supply cap and bonus
+tapering, this model can achieve viral adoption without collapsing the economy.
+Next steps could include formalizing the supply curve, drafting detailed token distribution (e.g. 80% to
+miners, 20% to team as in [17]), and building a dashboard to track ranks and emissions. Simulation of
+various growth scenarios will further refine anti-inflation parameters and ensure the system’s long-term
+sustainability.
+Sources: Tokenomics studies and whitepapers informed this design. We draw on mechanisms from Pi
+Network (mobile mining, halving by growth, M+R+D issuance) and Tau Network (structured
+M+R+D formula), as well as social mining models like Ziktalk . These illustrate how halving schedules and
+referral rewards can coexist to bootstrap a decentralized economy while capping inflation.
+Pi Cryptocurrency White Paper | Pi Network
+https://minepi.com/white-paper/
+Tau Whitepaper – Tau Network™
+https://minetau.com/tau-whitepaper/
+Ziktalk Whitepaper (Web 3.0 Social Platform)
+https://resources.cryptocompare.com/asset-management/2136/1675765071980.pdf
+•
+6
+•
+•
+•
+•
+1 3 2
+4
+1 3 5 6
+2
+4
+4
