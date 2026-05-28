@@ -22,6 +22,7 @@ import { getTelegramIdentity } from "./lib/telegram";
 
 const STORAGE_KEY = "sfox-react-platform-state";
 const SESSION_HOURS = 24;
+const HALVING_DAYS = 14;
 
 const rankMap = {
   miner: {
@@ -319,6 +320,20 @@ function getSessionEnd(miningStartedAt) {
   return miningStartedAt + SESSION_HOURS * 60 * 60 * 1000;
 }
 
+function getNextHalvingAt(epoch) {
+  const start = new Date(NETWORK_START_AT).getTime();
+  const halvingMs = HALVING_DAYS * 24 * 60 * 60 * 1000;
+  return start + (Math.max(0, epoch) + 1) * halvingMs;
+}
+
+function formatCountdownLong(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+}
+
 function App() {
   const [telegramIdentity, setTelegramIdentity] = useState(null);
   const [telegramReady, setTelegramReady] = useState(false);
@@ -365,7 +380,6 @@ function App() {
   const [activeTab, setActiveTab] = useState("news");
   const [activityFilter, setActivityFilter] = useState("all");
   const [rankSort, setRankSort] = useState("desc");
-  const [showRateBreakdown, setShowRateBreakdown] = useState(false);
   const [announcement, setAnnouncement] = useState(null);
   const [databaseReferrals, setDatabaseReferrals] = useState([]);
   const [databaseLeaderboard, setDatabaseLeaderboard] = useState([]);
@@ -797,6 +811,8 @@ function App() {
       ? "24:00:00"
       : "00:00:00";
   const earlyAdopterStartLabel = formatFullDateTime(NETWORK_START_AT);
+  const nextHalvingAt = getNextHalvingAt(state.epoch);
+  const nextHalvingCountdown = formatCountdownLong(nextHalvingAt - now);
   const phoneHeaderDate = formatPhoneHeaderDate(state.profileCreatedAt);
   const profileDisplayName = telegramIdentity?.firstName || state.telegramFirstName || state.username;
   const connectedFallbackTime = usingSupabase ? new Date().toISOString() : null;
@@ -830,8 +846,8 @@ function App() {
       label: "Possible rate",
       value: possibleRateText,
       type: "button",
-      active: showRateBreakdown,
-      onClick: () => setShowRateBreakdown((value) => !value),
+      active: activeTab === "rate_breakdown",
+      onClick: () => setActiveTab("rate_breakdown"),
     },
     {
       label: "Mining",
@@ -840,11 +856,19 @@ function App() {
       tone: mining.isRunning ? "live" : "idle",
       onClick: () => setActiveTab("mining"),
     },
-    { label: "Epoch", value: state.epoch },
+    {
+      label: "Epoch",
+      value: `${state.epoch}`,
+      type: "button",
+      active: activeTab === "epoch",
+      onClick: () => setActiveTab("epoch"),
+    },
   ];
   const appTabs = [
     { key: "news", label: "News" },
     { key: "mining", label: "Mining" },
+    { key: "rate_breakdown", label: "Possible Rate" },
+    { key: "epoch", label: "Epoch" },
     { key: "referrals", label: "Referrals" },
     { key: "ranks", label: "Ranks" },
     { key: "leaderboard", label: "Global Leaderboard" },
@@ -1663,6 +1687,101 @@ function App() {
                       </article>
                     )}
                   </div>
+                </article>
+              </section>
+            </section>
+          )}
+
+          {activeTab === "rate_breakdown" && (
+            <section className="app-page">
+              <div className="app-page-header">
+                <span className="app-page-eyebrow">Mining rate</span>
+                <h2>Possible Rate Breakdown</h2>
+                <p>See exactly how your current SFOX mining rate is built.</p>
+              </div>
+
+              <section className="dashboard-panels page-panels">
+                <article className="dashboard-card wide primary">
+                  <span>Final possible rate</span>
+                  <strong>{possibleRateText}</strong>
+                  <p>Your live rate follows the whitepaper formula: base rate x fixed rank boost x active overflow reward.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Base rate</span>
+                  <strong>{formatRate(mining.baseRate)}</strong>
+                  <p>Current epoch emission before any rank or referral rewards are applied.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Rank booster</span>
+                  <strong>{rank.multiplierLabel}</strong>
+                  <p>{eligibleRank.label} gives a fixed {Math.round(rank.boost * 100)}% lifetime boost.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Referral booster</span>
+                  <strong>x{referralBoosterFactor.toFixed(2)}</strong>
+                  <p>{referralOverflow} active overflow referrals are currently adding the variable team reward.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Free capacity</span>
+                  <strong>{eligibleRank.capacity}</strong>
+                  <p>Only active miners above this threshold add the overflow percentage reward.</p>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Formula</span>
+                  <strong>R = B x (1 + P + A)</strong>
+                  <p>
+                    Base rate ({formatRate(mining.baseRate)}) x [1 + fixed rank boost ({rank.boost.toFixed(2)}) + overflow reward ({(rank.referralRate * referralOverflow).toFixed(2)})]
+                  </p>
+                </article>
+              </section>
+            </section>
+          )}
+
+          {activeTab === "epoch" && (
+            <section className="app-page">
+              <div className="app-page-header">
+                <span className="app-page-eyebrow">Halving system</span>
+                <h2>Epoch {state.epoch}</h2>
+                <p>Track the current halving stage and see when the next emission cut arrives.</p>
+              </div>
+
+              <section className="dashboard-panels page-panels">
+                <article className="dashboard-card wide primary">
+                  <span>Next halving countdown</span>
+                  <strong>{nextHalvingCountdown}</strong>
+                  <p>The next halving is scheduled for {formatFullDateTime(nextHalvingAt)}.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Current epoch</span>
+                  <strong>{state.epoch}</strong>
+                  <p>You are mining in the current live emission stage.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Current base rate</span>
+                  <strong>{formatRate(mining.baseRate)}</strong>
+                  <p>Every epoch halves the base mining rate before boosters are applied.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Epoch length</span>
+                  <strong>{HALVING_DAYS} days</strong>
+                  <p>Each epoch lasts 14 days before the next halving event begins.</p>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>How halving works</span>
+                  <strong>Each new epoch reduces base issuance by 50%</strong>
+                  <p>
+                    Epoch 0 starts on {earlyAdopterStartLabel}. After every 14-day cycle, the base rate is halved:
+                    1.0, 0.5, 0.25, 0.125 and so on. Your rank and referral rewards are then applied on top of that reduced base rate.
+                  </p>
                 </article>
               </section>
             </section>
