@@ -29,62 +29,56 @@ const rankMap = {
   miner: {
     label: "Miner",
     multiplierLabel: "x1.0",
-    boost: 0,
+    boost: 1,
     referralRate: 0,
-    capacity: 0,
     minReferrals: 0,
     requiresEarly: false,
     note: "Base mining only. No rank bonus until Pioneer or Lord conditions are met.",
   },
   pioneer: {
     label: "Pioneer",
-    multiplierLabel: "x2.5",
+    multiplierLabel: "x1.5",
     boost: 1.5,
     referralRate: 0.1,
-    capacity: 10,
     minReferrals: 0,
     requiresEarly: true,
-    note: "+10% above 10 active referrals",
+    note: "+10% per active referral",
   },
   lord: {
     label: "Lord",
-    multiplierLabel: "x6.0",
+    multiplierLabel: "x5.0",
     boost: 5,
     referralRate: 0.12,
-    capacity: 50,
     minReferrals: 10,
     requiresEarly: false,
-    note: "+12% above 50 active referrals",
+    note: "+12% per active referral",
   },
   baron: {
     label: "Baron",
-    multiplierLabel: "x16.0",
+    multiplierLabel: "x15.0",
     boost: 15,
     referralRate: 0.15,
-    capacity: 100,
     minReferrals: 50,
     requiresEarly: false,
-    note: "+15% above 100 active referrals",
+    note: "+15% per active referral",
   },
   president: {
     label: "President",
-    multiplierLabel: "x31.0",
+    multiplierLabel: "x30.0",
     boost: 30,
     referralRate: 0.2,
-    capacity: 500,
     minReferrals: 100,
     requiresEarly: false,
-    note: "+20% above 500 active referrals",
+    note: "+20% per active referral",
   },
   titan: {
     label: "Titan",
-    multiplierLabel: "x51.0",
+    multiplierLabel: "x50.0",
     boost: 50,
     referralRate: 0.25,
-    capacity: 500,
     minReferrals: 500,
     requiresEarly: false,
-    note: "+25% above 500 active referrals",
+    note: "+25% per active referral",
   },
 };
 
@@ -564,8 +558,14 @@ function App() {
 
   const mining = useMemo(() => {
     const baseRate = getBaseRate(state.epoch);
-    const overflow = Math.max(0, state.activeReferrals - rank.capacity);
-    const totalRate = baseRate * (1 + rank.boost + rank.referralRate * overflow);
+    const pioneerLifetimeBonus =
+      state.joinedEarly && effectiveRankKey !== "miner" && effectiveRankKey !== "pioneer"
+        ? rankMap.pioneer.boost
+        : 0;
+    const fixedMultiplier = rank.boost + pioneerLifetimeBonus;
+    const referralBonus = rank.referralRate * state.activeReferrals;
+    const referralFactor = 1 + referralBonus;
+    const totalRate = baseRate * fixedMultiplier * referralFactor;
     const sessionReward = getSessionReward(totalRate);
     const sessionEnd = getSessionEnd(state.miningStartedAt);
     const isRunning = Boolean(state.miningStartedAt && sessionEnd && now < sessionEnd);
@@ -579,7 +579,10 @@ function App() {
 
     return {
       baseRate,
-      overflow,
+      pioneerLifetimeBonus,
+      fixedMultiplier,
+      referralBonus,
+      referralFactor,
       totalRate,
       sessionReward,
       sessionEarned,
@@ -870,8 +873,8 @@ function App() {
     : mining.claimReady
       ? "Claim ready"
       : "Ready to mine";
-  const rankBoosterFactor = 1 + rank.boost;
-  const referralBoosterFactor = 1 + rank.referralRate * mining.overflow;
+  const rankBoosterFactor = mining.fixedMultiplier;
+  const referralBoosterFactor = mining.referralFactor;
   const possibleRateText = formatRate(mining.totalRate);
 
   const countdownText = mining.isRunning
@@ -945,9 +948,7 @@ function App() {
     { key: "withdraw", label: "Withdraw" },
     { key: "profile", label: "Profile" },
   ];
-  const referralOverflow = Math.max(0, state.activeReferrals - eligibleRank.capacity);
-  const capacityUsed = Math.min(state.activeReferrals, eligibleRank.capacity);
-  const extraReferralBonus = eligibleRank.referralRate * referralOverflow;
+  const referralBonusPercent = mining.referralBonus * 100;
   const rankOrder = { miner: 0, pioneer: 1, lord: 2, baron: 3, president: 4, titan: 5 };
   const referrals = useMemo(() => {
     const source = usingSupabase ? databaseReferrals : fallbackReferralMembers;
@@ -1285,11 +1286,11 @@ function App() {
                     <h3>Build an active mining team, not just a large list.</h3>
                     <p>
                       Your referral power comes from miners who stay active. Bring people in, keep
-                      them mining, and push overflow members above your rank threshold.
+                      them mining, and let every active referral add to your live rate.
                     </p>
                     <div className="team-hero-pills">
                       <span>{state.activeReferrals} active miners</span>
-                      <span>{referralOverflow} overflow members</span>
+                      <span>+{(eligibleRank.referralRate * 100).toFixed(0)}% per active referral</span>
                       <span>{eligibleRank.label} rank live</span>
                     </div>
                   </div>
@@ -1338,9 +1339,9 @@ function App() {
                     <p>With current active team</p>
                   </article>
                   <article className="team-stat-card accent-amber">
-                    <span>Overflow</span>
-                    <strong>{referralOverflow}</strong>
-                    <p>+{(extraReferralBonus * 100).toFixed(0)}% extra power</p>
+                    <span>Referral bonus</span>
+                    <strong>+{referralBonusPercent.toFixed(0)}%</strong>
+                    <p>From {state.activeReferrals} active miners</p>
                   </article>
                 </div>
 
@@ -1368,12 +1369,12 @@ function App() {
                     <h3>Only active miners increase your referral power.</h3>
                     <div className="team-rule-list">
                       <div className="team-rule-item">
-                        <strong>Free capacity</strong>
-                        <p>{capacityUsed} members currently count inside your rank threshold.</p>
+                        <strong>Every active referral counts</strong>
+                        <p>There is no overflow threshold in the updated whitepaper model.</p>
                       </div>
                       <div className="team-rule-item">
-                        <strong>Overflow bonus</strong>
-                        <p>{referralOverflow} active members above the threshold create the extra boost.</p>
+                        <strong>Per-referral boost</strong>
+                        <p>Each active miner adds +{(eligibleRank.referralRate * 100).toFixed(0)}% at your current rank.</p>
                       </div>
                       <div className="team-rule-item">
                         <strong>Inactive members</strong>
@@ -1552,13 +1553,13 @@ function App() {
                     <span className="reading-kicker">Live status</span>
                     <h3>Your rank is permanent. Your referral activity powers it up.</h3>
                     <p>
-                      Rank gives you the fixed multiplier. Active overflow referrals above the free limit
-                      add extra percentage on top.
+                      Rank gives you the fixed multiplier. Then every active referral adds its
+                      rank-based percentage on top.
                     </p>
                     <div className="ranks-hero-pills">
-                      <span>{eligibleRank.multiplierLabel} fixed boost</span>
+                      <span>x{rankBoosterFactor.toFixed(1)} fixed multiplier</span>
                       <span>{state.activeReferrals} active referrals</span>
-                      <span>{referralOverflow} overflow active</span>
+                      <span>+{referralBonusPercent.toFixed(0)}% referral bonus</span>
                     </div>
                   </div>
 
@@ -1582,8 +1583,8 @@ function App() {
                   </article>
                   <article className="ranks-stat-card accent-green">
                     <span>Fixed rank boost</span>
-                    <strong>{eligibleRank.multiplierLabel}</strong>
-                    <p>Applied before overflow rewards.</p>
+                    <strong>x{rankBoosterFactor.toFixed(1)}</strong>
+                    <p>Rank multiplier plus Pioneer lifetime bonus when earned.</p>
                   </article>
                   <article className="ranks-stat-card accent-indigo">
                     <span>Next unlock</span>
@@ -1591,9 +1592,9 @@ function App() {
                     <p>{Math.max(0, nextRankRequirement - state.activeReferrals)} more active referrals.</p>
                   </article>
                   <article className="ranks-stat-card accent-amber">
-                    <span>Overflow reward</span>
-                    <strong>+{(extraReferralBonus * 100).toFixed(0)}%</strong>
-                    <p>From active members above your free limit.</p>
+                    <span>Referral reward</span>
+                    <strong>+{referralBonusPercent.toFixed(0)}%</strong>
+                    <p>From all active referrals at your current rank.</p>
                   </article>
                 </div>
 
@@ -1619,12 +1620,12 @@ function App() {
 
                     <div className="ranks-progress-breakdown">
                       <div>
-                        <strong>{eligibleRank.capacity}</strong>
-                        <span>Free capacity</span>
+                        <strong>x{rank.boost.toFixed(1)}</strong>
+                        <span>Rank multiplier</span>
                       </div>
                       <div>
                         <strong>+{(eligibleRank.referralRate * 100).toFixed(0)}%</strong>
-                        <span>Per active overflow</span>
+                        <span>Per active referral</span>
                       </div>
                       <div>
                         <strong>{possibleRateText}</strong>
@@ -1649,8 +1650,8 @@ function App() {
                         <p>Once earned, the rank multiplier stays with your account permanently.</p>
                       </div>
                       <div className="ranks-logic-item">
-                        <strong>3. Add overflow power</strong>
-                        <p>Only active referrals above the free-capacity limit add percentage rewards.</p>
+                        <strong>3. Add active referral power</strong>
+                        <p>Every active referral adds its full percentage reward. Inactive referrals add 0%.</p>
                       </div>
                     </div>
                   </article>
@@ -1696,12 +1697,7 @@ function App() {
                           </div>
 
                           <div className="ranks-ladder-metric">
-                            <span>Free capacity</span>
-                            <strong>{value.capacity}</strong>
-                          </div>
-
-                          <div className="ranks-ladder-metric">
-                            <span>Overflow reward</span>
+                            <span>Per active referral</span>
                             <strong>+{(value.referralRate * 100).toFixed(0)}%</strong>
                           </div>
                         </article>
@@ -1820,7 +1816,7 @@ function App() {
                 <article className="dashboard-card wide primary">
                   <span>Final possible rate</span>
                   <strong>{possibleRateText}</strong>
-                  <p>Your live rate follows the whitepaper formula: base rate x fixed rank boost x active overflow reward.</p>
+                  <p>Your live rate follows the updated whitepaper formula: base rate x fixed multiplier x active referral bonus.</p>
                 </article>
 
                 <article className="dashboard-card">
@@ -1831,27 +1827,25 @@ function App() {
 
                 <article className="dashboard-card">
                   <span>Rank booster</span>
-                  <strong>{rank.multiplierLabel}</strong>
-                  <p>{eligibleRank.label} gives a fixed {Math.round(rank.boost * 100)}% lifetime boost.</p>
+                  <strong>x{rankBoosterFactor.toFixed(1)}</strong>
+                  <p>
+                    {eligibleRank.label} gives x{rank.boost.toFixed(1)}
+                    {mining.pioneerLifetimeBonus > 0 ? `, plus Pioneer +${mining.pioneerLifetimeBonus.toFixed(1)}x` : ""}.
+                  </p>
                 </article>
 
                 <article className="dashboard-card">
                   <span>Referral booster</span>
                   <strong>x{referralBoosterFactor.toFixed(2)}</strong>
-                  <p>{referralOverflow} active overflow referrals are currently adding the variable team reward.</p>
-                </article>
-
-                <article className="dashboard-card">
-                  <span>Free capacity</span>
-                  <strong>{eligibleRank.capacity}</strong>
-                  <p>Only active miners above this threshold add the overflow percentage reward.</p>
+                  <p>{state.activeReferrals} active referrals are adding +{referralBonusPercent.toFixed(0)}% total bonus.</p>
                 </article>
 
                 <article className="dashboard-card wide">
                   <span>Formula</span>
-                  <strong>R = B x (1 + P + A)</strong>
+                  <strong>R = B x (Rank + Pioneer) x (1 + Active referral bonus)</strong>
                   <p>
-                    Base rate ({formatRate(mining.baseRate)}) x [1 + fixed rank boost ({rank.boost.toFixed(2)}) + overflow reward ({(rank.referralRate * referralOverflow).toFixed(2)})]
+                    Base rate ({formatRate(mining.baseRate)}) x fixed multiplier ({mining.fixedMultiplier.toFixed(2)}) x
+                    referral factor ({referralBoosterFactor.toFixed(2)}).
                   </p>
                 </article>
               </section>
