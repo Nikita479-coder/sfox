@@ -1,4 +1,4 @@
-import { supabase, hasSupabaseConfig } from "./supabase";
+import { supabase, hasSupabaseConfig, supabaseAnonKey, supabaseUrl } from "./supabase";
 import { isEarlyAdopterDate } from "./earlyAdopter";
 
 export const fallbackAnnouncement = null;
@@ -31,19 +31,28 @@ function buildIdentityPayload(identity = null) {
 }
 
 async function invokeSecureAppApi(action, payload = {}, identity = null) {
-  if (!hasSupabaseConfig || !supabase) {
+  if (!hasSupabaseConfig || !supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase is not configured");
   }
 
-  const { data, error } = await supabase.functions.invoke("app-api", {
-    body: {
+  const response = await fetch(`${supabaseUrl}/functions/v1/app-api`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({
       action,
       identity: buildIdentityPayload(identity),
       ...payload,
-    },
+    }),
   });
 
-  if (error) throw error;
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error || `Secure app request failed (${response.status})`);
+  }
   if (!data?.ok) {
     throw new Error(data?.error || "Secure app request failed");
   }
