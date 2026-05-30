@@ -589,6 +589,7 @@ function App() {
     return subscribeToAppData({
       profileId,
       defaultState,
+      identity: telegramIdentity,
       onData: (result) => {
         setAnnouncement(result.announcement || null);
         setDatabaseReferrals(result.referrals || []);
@@ -606,7 +607,7 @@ function App() {
         console.error("Realtime refresh failed", error);
       },
     });
-  }, [profileId, usingSupabase]);
+  }, [profileId, telegramIdentity, usingSupabase]);
 
   useEffect(() => {
     let frameId;

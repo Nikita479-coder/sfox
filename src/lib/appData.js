@@ -521,8 +521,8 @@ export async function recordMiningClaim({
   });
 }
 
-export function subscribeToAppData({ profileId, defaultState, onData, onError }) {
-  if (!hasSupabaseConfig || !supabase || !profileId) {
+export function subscribeToAppData({ profileId, defaultState, identity = null, onData, onError }) {
+  if (!hasSupabaseConfig || !supabase || !profileId || !identity?.initData) {
     return () => {};
   }
 
@@ -530,47 +530,30 @@ export function subscribeToAppData({ profileId, defaultState, onData, onError })
 
   const refresh = async () => {
     try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", profileId)
-        .single();
+      const result = await invokeSecureAppApi("bootstrap", {
+        initData: identity.initData,
+      });
 
-      if (error) throw error;
+      const snapshot = {
+        profileId: result.profileId,
+        state: result.state,
+        announcement: result.announcement,
+        referrals: result.referrals,
+        leaderboard: result.leaderboard,
+        protocol: result.protocol || null,
+        isAdmin: Boolean(result.isAdmin),
+      };
 
-      const snapshot = await fetchAppSnapshot(profile, defaultState);
       if (!cancelled) onData(snapshot);
     } catch (error) {
       if (!cancelled && onError) onError(error);
     }
   };
 
-  const channel = supabase
-    .channel(`app-live:${profileId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "profiles", filter: `id=eq.${profileId}` },
-      refresh
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "referrals", filter: `referrer_profile_id=eq.${profileId}` },
-      refresh
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "announcements" },
-      refresh
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "profiles" },
-      refresh
-    )
-    .subscribe();
+  const intervalId = window.setInterval(refresh, 5000);
 
   return () => {
     cancelled = true;
-    supabase.removeChannel(channel);
+    window.clearInterval(intervalId);
   };
 }
