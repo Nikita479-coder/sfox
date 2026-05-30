@@ -41,6 +41,7 @@ export function getTelegramIdentity() {
 
   return {
     isTelegram: true,
+    initData: webApp.initData || "",
     telegramUserId: String(user.id),
     username,
     firstName: user.first_name || "",

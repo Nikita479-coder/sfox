@@ -56,6 +56,10 @@ const miniAppUrl =
   env.TELEGRAM_MINI_APP_URL ||
   env.VITE_TELEGRAM_MINI_APP_URL ||
   currentMenuButton?.web_app?.url;
+const derivedWebhookUrl = env.VITE_SUPABASE_URL
+  ? `${String(env.VITE_SUPABASE_URL).replace(/\/+$/, "")}/functions/v1/telegram-webhook`
+  : "";
+const webhookUrl = env.TELEGRAM_WEBHOOK_URL || derivedWebhookUrl;
 
 if (!miniAppUrl) {
   throw new Error(
@@ -79,6 +83,7 @@ await callTelegram("setMyCommands", {
     { command: "app", description: "Launch the SFOX Mini App" },
     { command: "invite", description: "Open your referral team and invite flow" },
     { command: "leaderboard", description: "Open the global leaderboard" },
+    { command: "protocol", description: "Open protocol supply and epoch state" },
   ],
 });
 
@@ -90,6 +95,14 @@ await callTelegram("setMyDescription", {
   description:
     "SFOX is a Telegram Mini App for mining, referrals, rank growth, leaderboard tracking, and future mainnet migration.",
 });
+
+if (webhookUrl) {
+  await callTelegram("setWebhook", {
+    url: webhookUrl,
+    allowed_updates: ["message"],
+    drop_pending_updates: false,
+  });
+}
 
 console.log(
   JSON.stringify(
@@ -103,7 +116,8 @@ console.log(
         text: "SFOX",
         url: miniAppUrl,
       },
-      commands: ["start", "app", "invite", "leaderboard"],
+      webhook_url: webhookUrl || null,
+      commands: ["start", "app", "invite", "leaderboard", "protocol"],
     },
     null,
     2

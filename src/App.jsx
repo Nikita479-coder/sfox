@@ -10,11 +10,16 @@ import {
   createReferralMember,
   fallbackLeaderboardEntries,
   fallbackReferralMembers,
+  listAdminAnnouncements,
   loadAppBootstrap,
+  listAnnouncements,
   persistProfileState,
+  recordMiningClaim,
   remindInactiveReferralMembers,
   remindReferralMember,
+  saveAnnouncement,
   subscribeToAppData,
+  toggleAnnouncementActive,
   updateReferralMember,
 } from "./lib/appData";
 import { hasSupabaseConfig } from "./lib/supabase";
@@ -24,6 +29,7 @@ import { buildTelegramReferralLink, getTelegramIdentity } from "./lib/telegram";
 const STORAGE_KEY = "sfox-react-platform-state";
 const SESSION_HOURS = 24;
 const HALVING_DAYS = 14;
+const rankOrder = { miner: 0, pioneer: 1, lord: 2, baron: 3, president: 4, titan: 5 };
 
 const rankMap = {
   miner: {
@@ -94,6 +100,8 @@ const rankVisuals = {
 const defaultState = {
   epoch: 0,
   selectedRank: "auto",
+  currentRank: "miner",
+  canManageAdmin: false,
   activeReferrals: 0,
   totalReferrals: 0,
   joinedEarly: isEarlyAdopterDate(),
@@ -116,6 +124,10 @@ const defaultState = {
   inviterUsername: "",
   roleCount: 1,
 };
+
+function getHigherRank(leftRank, rightRank) {
+  return rankOrder[leftRank] >= rankOrder[rightRank] ? leftRank : rightRank;
+}
 
 function loadState() {
   if (hasSupabaseConfig) {
@@ -165,6 +177,12 @@ function formatCountdown(ms) {
 
 function formatSessionEarned(value) {
   return value.toFixed(6);
+}
+
+function formatTokenMetric(value) {
+  return `${Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 5,
+  })} SFOX`;
 }
 
 function formatPhoneHeaderDate(value) {
@@ -310,6 +328,13 @@ function getBaseRate(epoch) {
   return 1 / 2 ** Math.max(0, epoch);
 }
 
+function getGlobalEpoch(now = Date.now()) {
+  const start = new Date(NETWORK_START_AT).getTime();
+  const halvingMs = HALVING_DAYS * 24 * 60 * 60 * 1000;
+  if (now <= start) return 0;
+  return Math.max(0, Math.floor((now - start) / halvingMs));
+}
+
 function getSessionReward(totalRate) {
   return totalRate * SESSION_HOURS;
 }
@@ -331,6 +356,25 @@ function formatCountdownLong(ms) {
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function getInitialTab() {
+  if (typeof window === "undefined") return "news";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  const allowedTabs = new Set([
+    "news",
+    "mining",
+    "protocol",
+    "rate_breakdown",
+    "epoch",
+    "referrals",
+    "ranks",
+    "leaderboard",
+    "profile",
+    "admin",
+  ]);
+
+  return allowedTabs.has(tab) ? tab : "news";
 }
 
 function App() {
@@ -377,12 +421,13 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedReferralLink, setCopiedReferralLink] = useState(false);
-  const [activeTab, setActiveTab] = useState("news");
+  const [activeTab, setActiveTab] = useState(() => getInitialTab());
   const [activityFilter, setActivityFilter] = useState("all");
   const [rankSort, setRankSort] = useState("desc");
   const [announcement, setAnnouncement] = useState(null);
   const [databaseReferrals, setDatabaseReferrals] = useState([]);
   const [databaseLeaderboard, setDatabaseLeaderboard] = useState([]);
+  const [protocolSnapshot, setProtocolSnapshot] = useState(null);
   const [usingSupabase, setUsingSupabase] = useState(false);
   const [bootstrapReady, setBootstrapReady] = useState(false);
   const [profileId, setProfileId] = useState(null);
@@ -391,6 +436,20 @@ function App() {
   const [teamMessage, setTeamMessage] = useState("");
   const [teamBusy, setTeamBusy] = useState(false);
   const [manualReferralCode, setManualReferralCode] = useState("");
+  const [adminAnnouncements, setAdminAnnouncements] = useState([]);
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("");
+  const [announcementForm, setAnnouncementForm] = useState({
+    slug: "",
+    eyebrow: "@SFOXCoreTeam",
+    title: "",
+    body: "",
+    primaryCtaLabel: "Announcement",
+    secondaryCtaLabel: "Open forum",
+    primaryCtaTarget: "",
+    secondaryCtaTarget: "",
+    isActive: true,
+  });
 
   const openExternalTarget = (target) => {
     if (!target) return false;
@@ -426,6 +485,16 @@ function App() {
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    if (!isAdmin || !usingSupabase) return;
+
+    listAdminAnnouncements(telegramIdentity)
+      .then((items) => setAdminAnnouncements(items))
+      .catch((error) => {
+        console.error("Failed to load admin announcements", error);
+      });
+  }, [isAdmin, usingSupabase, announcement, telegramIdentity]);
 
   useEffect(() => {
     if (!telegramIdentity) return;
@@ -466,12 +535,17 @@ function App() {
         if (cancelled) return;
 
         if (result.state) {
-          setState((current) => ({ ...current, ...result.state }));
+          setState((current) => ({
+            ...current,
+            ...result.state,
+            canManageAdmin: Boolean(result.isAdmin),
+          }));
         }
 
         setAnnouncement(result.announcement || null);
         setDatabaseReferrals(result.referrals || []);
         setDatabaseLeaderboard(result.leaderboard || []);
+        setProtocolSnapshot(result.protocol || null);
         setUsingSupabase(result.usingSupabase);
         setProfileId(result.profileId || null);
       } catch (error) {
@@ -500,8 +574,13 @@ function App() {
         setAnnouncement(result.announcement || null);
         setDatabaseReferrals(result.referrals || []);
         setDatabaseLeaderboard(result.leaderboard || []);
+        setProtocolSnapshot(result.protocol || null);
         if (result.state) {
-          setState((current) => ({ ...current, ...result.state }));
+          setState((current) => ({
+            ...current,
+            ...result.state,
+            canManageAdmin: current.canManageAdmin,
+          }));
         }
       },
       onError: (error) => {
@@ -527,37 +606,39 @@ function App() {
     };
   }, []);
 
-  const eligibleRankKey = getEligibleRank(state.activeReferrals, state.joinedEarly);
-  const effectiveRankKey = state.selectedRank === "auto" ? eligibleRankKey : state.selectedRank;
+  const globalEpoch = getGlobalEpoch(now);
+  const unlockedRankKey = getEligibleRank(state.activeReferrals, state.joinedEarly);
+  const permanentRankKey = getHigherRank(state.currentRank || "miner", unlockedRankKey);
+  const effectiveRankKey = permanentRankKey;
   const rank = rankMap[effectiveRankKey];
-  const eligibleRank = rankMap[eligibleRankKey];
+  const eligibleRank = rankMap[permanentRankKey];
   const nextRank = useMemo(() => {
-    if (eligibleRankKey === "miner") {
+    if (permanentRankKey === "miner") {
       return state.joinedEarly
         ? { label: "Pioneer", requirement: "Early-adopter bonus is active" }
         : { label: "Lord", requirement: "Reach 10 active referrals" };
     }
-    if (eligibleRankKey === "pioneer") {
+    if (permanentRankKey === "pioneer") {
       return { label: "Lord", requirement: "Reach 10 active referrals" };
     }
-    if (eligibleRankKey === "lord") {
+    if (permanentRankKey === "lord") {
       return { label: "Baron", requirement: "Reach 50 active referrals" };
     }
-    if (eligibleRankKey === "baron") {
+    if (permanentRankKey === "baron") {
       return { label: "President", requirement: "Reach 100 active referrals" };
     }
-    if (eligibleRankKey === "president") {
+    if (permanentRankKey === "president") {
       return { label: "Titan", requirement: "Reach 500 active referrals" };
     }
     return { label: "Titan", requirement: "Highest whitepaper rank reached" };
-  }, [eligibleRankKey, state.joinedEarly]);
+  }, [permanentRankKey, state.joinedEarly]);
   const rankEntries = useMemo(
     () => Object.entries(rankMap).filter(([key]) => key !== "miner"),
     []
   );
 
   const mining = useMemo(() => {
-    const baseRate = getBaseRate(state.epoch);
+    const baseRate = getBaseRate(globalEpoch);
     const pioneerLifetimeBonus =
       state.joinedEarly && effectiveRankKey !== "miner" && effectiveRankKey !== "pioneer"
         ? rankMap.pioneer.boost
@@ -591,21 +672,27 @@ function App() {
       claimReady,
       remainingMs,
     };
-  }, [now, rank, state.activeReferrals, state.epoch, state.miningStartedAt, state.sessionClaimed]);
+  }, [effectiveRankKey, globalEpoch, now, rank, state.activeReferrals, state.joinedEarly, state.miningStartedAt, state.sessionClaimed]);
+
+  useEffect(() => {
+    if (state.currentRank === permanentRankKey) return;
+    setState((current) => ({ ...current, currentRank: permanentRankKey }));
+  }, [permanentRankKey, state.currentRank]);
 
   useEffect(() => {
     if (!bootstrapReady) return;
 
     persistProfileState({
       state,
-      currentRank: eligibleRankKey,
+      currentRank: permanentRankKey,
       currentRate: mining.totalRate,
+      currentEpoch: globalEpoch,
       profileId,
       identity: telegramIdentity,
     }).catch((error) => {
       console.error("Failed to persist profile state", error);
     });
-  }, [bootstrapReady, eligibleRankKey, mining.totalRate, profileId, state, telegramIdentity]);
+  }, [bootstrapReady, globalEpoch, mining.totalRate, permanentRankKey, profileId, state, telegramIdentity]);
 
   const handleStatePatch = (patch) => {
     setState((current) => ({ ...current, ...patch }));
@@ -641,14 +728,33 @@ function App() {
     });
   };
 
-  const handleClaimMining = () => {
+  const handleClaimMining = async () => {
     if (!mining.claimReady) return;
-    handleStatePatch({
-      totalMined: state.totalMined + mining.sessionReward,
-      miningStartedAt: null,
-      sessionClaimed: true,
-      lastClaimedAt: Date.now(),
-    });
+    const claimedAt = Date.now();
+
+    try {
+      if (usingSupabase && profileId && state.miningStartedAt && mining.sessionEnd) {
+        await recordMiningClaim({
+          profileId,
+          epoch: globalEpoch,
+          sessionStartedAt: state.miningStartedAt,
+          sessionEndedAt: mining.sessionEnd,
+          claimedAt,
+          amount: mining.sessionReward,
+          identity: telegramIdentity,
+        });
+      }
+
+      handleStatePatch({
+        totalMined: state.totalMined + mining.sessionReward,
+        miningStartedAt: null,
+        sessionClaimed: true,
+        lastClaimedAt: claimedAt,
+        currentRank: permanentRankKey,
+      });
+    } catch (error) {
+      console.error("Failed to record mining claim", error);
+    }
   };
 
   const handleCopyCode = async () => {
@@ -668,6 +774,81 @@ function App() {
       window.setTimeout(() => setCopiedReferralLink(false), 1200);
     } catch {
       setCopiedReferralLink(false);
+    }
+  };
+
+  const handleAdminFieldChange = (field, value) => {
+    setAnnouncementForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleLoadAnnouncementIntoEditor = (item) => {
+    setAnnouncementForm({
+      slug: item.slug || "",
+      eyebrow: item.eyebrow || "@SFOXCoreTeam",
+      title: item.title || "",
+      body: item.body || "",
+      primaryCtaLabel: item.primaryCtaLabel || "Announcement",
+      secondaryCtaLabel: item.secondaryCtaLabel || "Open forum",
+      primaryCtaTarget: item.primaryCtaTarget || "",
+      secondaryCtaTarget: item.secondaryCtaTarget || "",
+      isActive: item.isActive ?? true,
+    });
+    setAdminMessage(`Loaded ${item.slug || item.title} into the editor.`);
+  };
+
+  const handleToggleAdminAnnouncement = async (item) => {
+    setAdminBusy(true);
+    setAdminMessage("");
+
+    try {
+      const updated = await toggleAnnouncementActive({
+        slug: item.slug,
+        isActive: !item.isActive,
+        identity: telegramIdentity,
+      });
+      setAdminAnnouncements((current) =>
+        current.map((entry) => (entry.slug === updated.slug ? updated : entry))
+      );
+      if (announcement?.slug === updated.slug) {
+        setAnnouncement(updated.isActive ? updated : null);
+      }
+      setAdminMessage(
+        `${updated.slug} is now ${updated.isActive ? "active" : "inactive"}.`
+      );
+    } catch (error) {
+      console.error("Failed to toggle announcement", error);
+      setAdminMessage(error?.message || "Could not update announcement status.");
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  const handleSaveAnnouncement = async () => {
+    if (!announcementForm.title.trim() || !announcementForm.body.trim()) {
+      setAdminMessage("Title and body are required.");
+      return;
+    }
+
+    setAdminBusy(true);
+    setAdminMessage("");
+
+    try {
+      const saved = await saveAnnouncement(announcementForm, telegramIdentity);
+      setAdminMessage("Announcement published.");
+      setAnnouncement(saved);
+      setAdminAnnouncements((current) => {
+        const next = current.filter((item) => item.title !== saved.title);
+        return [saved, ...next];
+      });
+      setAnnouncementForm((current) => ({
+        ...current,
+        slug: current.slug || "",
+      }));
+    } catch (error) {
+      console.error("Failed to save announcement", error);
+      setAdminMessage(error?.message || "Could not save announcement.");
+    } finally {
+      setAdminBusy(false);
     }
   };
 
@@ -692,6 +873,7 @@ function App() {
           profileId,
           username: trimmedName,
           rank: newReferralRank,
+          identity: telegramIdentity,
         });
 
         const nextMembers = [
@@ -739,6 +921,7 @@ function App() {
         const updated = await updateReferralMember({
           referralId: member.id,
           patch: { is_active: !member.active },
+          identity: telegramIdentity,
         });
 
         const nextMembers = referrals.map((entry) =>
@@ -773,7 +956,7 @@ function App() {
 
     try {
       if (usingSupabase && member.id) {
-        const updated = await remindReferralMember(member.id);
+        const updated = await remindReferralMember(member.id, telegramIdentity);
         const nextMembers = referrals.map((entry) =>
           entry.id === member.id
             ? {
@@ -806,7 +989,7 @@ function App() {
 
     try {
       if (usingSupabase && profileId) {
-        const updatedMembers = await remindInactiveReferralMembers(profileId);
+        const updatedMembers = await remindInactiveReferralMembers(profileId, telegramIdentity);
         const updatedMap = new Map(updatedMembers.map((entry) => [entry.id, entry]));
         const nextMembers = referrals.map((entry) => {
           const updated = updatedMap.get(entry.id);
@@ -851,12 +1034,15 @@ function App() {
       const updatedProfile = await applyReferralCode({
         profileId,
         code: trimmedCode,
+        identity: telegramIdentity,
       });
 
       setState((current) => ({
         ...current,
-        referredByProfileId: updatedProfile.referred_by_profile_id || null,
-        referralCodeAppliedAt: updatedProfile.referral_code_applied_at || null,
+        referredByProfileId: updatedProfile.state?.referredByProfileId || current.referredByProfileId,
+        referralCodeAppliedAt: updatedProfile.state?.referralCodeAppliedAt || current.referralCodeAppliedAt,
+        inviterDisplayName: updatedProfile.state?.inviterDisplayName || current.inviterDisplayName,
+        inviterUsername: updatedProfile.state?.inviterUsername || current.inviterUsername,
       }));
       setManualReferralCode("");
       setTeamMessage("Referral code applied.");
@@ -883,10 +1069,11 @@ function App() {
       ? "24:00:00"
       : "00:00:00";
   const earlyAdopterStartLabel = formatFullDateTime(NETWORK_START_AT);
-  const nextHalvingAt = getNextHalvingAt(state.epoch);
+  const nextHalvingAt = getNextHalvingAt(globalEpoch);
   const nextHalvingCountdown = formatCountdownLong(nextHalvingAt - now);
   const phoneHeaderDate = formatPhoneHeaderDate(state.profileCreatedAt);
   const profileDisplayName = telegramIdentity?.firstName || state.telegramFirstName || state.username;
+  const isAdmin = Boolean(state.canManageAdmin);
   const connectedFallbackTime = usingSupabase ? new Date().toISOString() : null;
   const joinedValue = state.profileCreatedAt || state.profileUpdatedAt || connectedFallbackTime;
   const lastSyncValue = state.profileUpdatedAt || state.profileCreatedAt || connectedFallbackTime;
@@ -930,7 +1117,7 @@ function App() {
     },
     {
       label: "Epoch",
-      value: `${state.epoch}`,
+      value: `${globalEpoch}`,
       type: "button",
       active: activeTab === "epoch",
       onClick: () => setActiveTab("epoch"),
@@ -939,6 +1126,7 @@ function App() {
   const appTabs = [
     { key: "news", label: "News" },
     { key: "mining", label: "Mining" },
+    { key: "protocol", label: "Protocol" },
     { key: "rate_breakdown", label: "Possible Rate" },
     { key: "epoch", label: "Epoch" },
     { key: "referrals", label: "Referrals" },
@@ -947,9 +1135,9 @@ function App() {
     { key: "migration", label: "Migration to Mainnet" },
     { key: "withdraw", label: "Withdraw" },
     { key: "profile", label: "Profile" },
+    ...(isAdmin ? [{ key: "admin", label: "Admin" }] : []),
   ];
   const referralBonusPercent = mining.referralBonus * 100;
-  const rankOrder = { miner: 0, pioneer: 1, lord: 2, baron: 3, president: 4, titan: 5 };
   const referrals = useMemo(() => {
     const source = usingSupabase ? databaseReferrals : fallbackReferralMembers;
 
@@ -977,7 +1165,7 @@ function App() {
       ? Math.min(100, Math.round((state.activeReferrals / state.totalReferrals) * 100))
       : 0;
   const nextRankTarget =
-    eligibleRankKey === "titan"
+    permanentRankKey === "titan"
       ? state.activeReferrals
       : rankMap[nextRank.label.toLowerCase()]?.minReferrals || eligibleRank.minReferrals;
   const nextRankRequirement = nextRankTarget || state.activeReferrals;
@@ -988,7 +1176,7 @@ function App() {
     const currentUserEntry = {
       username: state.username,
       displayName: profileDisplayName,
-      rank: eligibleRankKey,
+      rank: permanentRankKey,
       mined: state.totalMined,
       active: state.activeReferrals,
       total: state.totalReferrals,
@@ -1008,7 +1196,7 @@ function App() {
       .map((entry, index) => ({ ...entry, position: index + 1 }));
   }, [
     databaseLeaderboard,
-    eligibleRankKey,
+    permanentRankKey,
     mining.totalRate,
     state.activeReferrals,
     state.totalMined,
@@ -1072,7 +1260,7 @@ function App() {
         <div className="sidebar-section">
           <p className="sidebar-label">Rank summary</p>
           <div className="sidebar-card accent">
-            <RankBadge rankKey={eligibleRankKey} label={eligibleRank.label} />
+            <RankBadge rankKey={permanentRankKey} label={eligibleRank.label} />
             <span>Actual rank now</span>
             <strong>{eligibleRank.label}</strong>
             <small>{eligibleRank.note}</small>
@@ -1202,7 +1390,7 @@ function App() {
                       </div>
                     ) : (
                       <>
-                        <RankHeroBadge rankKey={eligibleRankKey} label={eligibleRank.label} />
+                        <RankHeroBadge rankKey={permanentRankKey} label={eligibleRank.label} />
                         <div className="mining-ring">
                           <div className="mining-ring-inner">
                             <div className="ring-readout">
@@ -1565,7 +1753,7 @@ function App() {
 
                   <div className="ranks-hero-side">
                     <div className="ranks-current-card">
-                      <RankBadge rankKey={eligibleRankKey} label={eligibleRank.label} />
+                      <RankBadge rankKey={permanentRankKey} label={eligibleRank.label} />
                       <div className="ranks-current-copy">
                         <span>Current rank</span>
                         <strong>{eligibleRank.label}</strong>
@@ -1671,8 +1859,8 @@ function App() {
 
                   <div className="ranks-ladder-list">
                     {rankEntries.map(([key, value]) => {
-                      const isCurrent = key === eligibleRankKey;
-                      const isNext = value.label === nextRank.label && eligibleRankKey !== "titan";
+                      const isCurrent = key === permanentRankKey;
+                      const isNext = value.label === nextRank.label && permanentRankKey !== "titan";
 
                       return (
                         <article
@@ -1804,6 +1992,55 @@ function App() {
             </section>
           )}
 
+          {activeTab === "protocol" && (
+            <section className="app-page">
+              <div className="app-page-header">
+                <span className="app-page-eyebrow">Protocol state</span>
+                <h2>Network Accounting</h2>
+                <p>Live community issuance, supply remaining, developer allocation tracking, and global halving state.</p>
+              </div>
+
+              <section className="dashboard-panels page-panels">
+                <article className="dashboard-card wide primary">
+                  <span>Community mining issued</span>
+                  <strong>{formatTokenMetric(protocolSnapshot?.communityMiningIssued)}</strong>
+                  <p>
+                    {formatTokenMetric(protocolSnapshot?.communityMiningRemaining)} remain out of the
+                    {` ${formatTokenMetric(protocolSnapshot?.communityMiningCap)} `}community mining cap.
+                  </p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Developer allocation issued</span>
+                  <strong>{formatTokenMetric(protocolSnapshot?.developerAllocationIssued)}</strong>
+                  <p>{formatTokenMetric(protocolSnapshot?.developerAllocationRemaining)} still available.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Current global epoch</span>
+                  <strong>{protocolSnapshot?.globalEpoch ?? globalEpoch}</strong>
+                  <p>The network-wide halving epoch now applies equally to every miner.</p>
+                </article>
+
+                <article className="dashboard-card">
+                  <span>Next halving</span>
+                  <strong>{formatCountdownLong((protocolSnapshot?.nextHalvingAt || nextHalvingAt) - now)}</strong>
+                  <p>Scheduled for {formatFullDateTime(protocolSnapshot?.nextHalvingAt || nextHalvingAt)}.</p>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Supply model</span>
+                  <strong>500,000,000 total supply</strong>
+                  <p>
+                    400,000,000 SFOX are reserved for community mining and 100,000,000 SFOX for
+                    developer allocation. Mining claims now feed the protocol ledger through
+                    on-chain style accounting records instead of only updating the visible profile balance.
+                  </p>
+                </article>
+              </section>
+            </section>
+          )}
+
           {activeTab === "rate_breakdown" && (
             <section className="app-page">
               <div className="app-page-header">
@@ -1856,7 +2093,7 @@ function App() {
             <section className="app-page">
               <div className="app-page-header">
                 <span className="app-page-eyebrow">Halving system</span>
-                <h2>Epoch {state.epoch}</h2>
+                <h2>Epoch {globalEpoch}</h2>
                 <p>Track the current halving stage and see when the next emission cut arrives.</p>
               </div>
 
@@ -1869,7 +2106,7 @@ function App() {
 
                 <article className="dashboard-card">
                   <span>Current epoch</span>
-                  <strong>{state.epoch}</strong>
+                  <strong>{globalEpoch}</strong>
                   <p>You are mining in the current live emission stage.</p>
                 </article>
 
@@ -1948,6 +2185,115 @@ function App() {
                     <p>{state.inviterUsername ? `@${state.inviterUsername}` : "Referral link connected"}</p>
                   </article>
                 )}
+              </section>
+            </section>
+          )}
+
+          {activeTab === "admin" && isAdmin && (
+            <section className="app-page">
+              <div className="app-page-header">
+                <span className="app-page-eyebrow">Admin tools</span>
+                <h2>Announcement Control</h2>
+                <p>Publish and update the news feed without editing Supabase rows by hand.</p>
+              </div>
+
+              <section className="dashboard-panels page-panels">
+                <article className="dashboard-card wide primary">
+                  <span>Publish announcement</span>
+                  <strong>News feed editor</strong>
+                  <p>Create or update an active announcement for the Mini App news page.</p>
+                  <div className="team-add-form">
+                    <input
+                      type="text"
+                      placeholder="Slug"
+                      value={announcementForm.slug}
+                      onChange={(event) => handleAdminFieldChange("slug", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Eyebrow"
+                      value={announcementForm.eyebrow}
+                      onChange={(event) => handleAdminFieldChange("eyebrow", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Title"
+                      value={announcementForm.title}
+                      onChange={(event) => handleAdminFieldChange("title", event.target.value)}
+                    />
+                    <textarea
+                      className="admin-textarea"
+                      placeholder="Body"
+                      value={announcementForm.body}
+                      onChange={(event) => handleAdminFieldChange("body", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Primary CTA label"
+                      value={announcementForm.primaryCtaLabel}
+                      onChange={(event) => handleAdminFieldChange("primaryCtaLabel", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Secondary CTA label"
+                      value={announcementForm.secondaryCtaLabel}
+                      onChange={(event) => handleAdminFieldChange("secondaryCtaLabel", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Primary CTA target"
+                      value={announcementForm.primaryCtaTarget}
+                      onChange={(event) => handleAdminFieldChange("primaryCtaTarget", event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Secondary CTA target"
+                      value={announcementForm.secondaryCtaTarget}
+                      onChange={(event) => handleAdminFieldChange("secondaryCtaTarget", event.target.value)}
+                    />
+                    <button
+                      className="primary-button team-add-button"
+                      type="button"
+                      onClick={handleSaveAnnouncement}
+                      disabled={adminBusy}
+                    >
+                      {adminBusy ? "Publishing..." : "Publish announcement"}
+                    </button>
+                    {adminMessage && <p className="team-feedback">{adminMessage}</p>}
+                  </div>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Recent announcements</span>
+                  <strong>{adminAnnouncements.length}</strong>
+                  <p>Latest items currently stored in Supabase.</p>
+                  <div className="admin-announcement-list">
+                    {adminAnnouncements.map((item, index) => (
+                      <div className="admin-announcement-row" key={`${item.title}-${index}`}>
+                        <strong>{item.title}</strong>
+                        <span>{item.eyebrow}</span>
+                        <p>{item.body}</p>
+                        <div className="admin-announcement-actions">
+                          <button
+                            className="ghost-button admin-announcement-button"
+                            type="button"
+                            onClick={() => handleLoadAnnouncementIntoEditor(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="ghost-button admin-announcement-button"
+                            type="button"
+                            onClick={() => handleToggleAdminAnnouncement(item)}
+                            disabled={adminBusy}
+                          >
+                            {item.isActive ? "Deactivate" : "Activate"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
               </section>
             </section>
           )}

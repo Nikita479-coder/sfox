@@ -6,6 +6,26 @@ export const fallbackLeaderboardEntries = [];
 export const fallbackReferralMembers = [];
 const SESSION_HOURS = 24;
 
+async function invokeSecureAppApi(action, payload = {}) {
+  if (!hasSupabaseConfig || !supabase) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const { data, error } = await supabase.functions.invoke("app-api", {
+    body: {
+      action,
+      ...payload,
+    },
+  });
+
+  if (error) throw error;
+  if (!data?.ok) {
+    throw new Error(data?.error || "Secure app request failed");
+  }
+
+  return data;
+}
+
 function formatPublishedLabel(value) {
   if (!value) return "";
   const published = new Date(value);
@@ -36,7 +56,7 @@ function buildProfilePayload(defaultState, identity) {
     telegram_is_premium: identity?.isPremium || false,
     joined_early: joinedEarly,
     selected_rank: defaultState.selectedRank,
-    current_rank: "miner",
+    current_rank: defaultState.currentRank || "miner",
     epoch: defaultState.epoch,
     active_referrals: defaultState.activeReferrals,
     total_referrals: defaultState.totalReferrals,
@@ -194,6 +214,7 @@ function mapReferralRow(row) {
 
 function mapAnnouncementRow(row) {
   return {
+    slug: row.slug,
     eyebrow: row.eyebrow,
     title: row.title,
     body: row.body,
@@ -201,6 +222,8 @@ function mapAnnouncementRow(row) {
     secondaryCtaLabel: row.secondary_cta_label,
     primaryCtaTarget: row.primary_cta_target,
     secondaryCtaTarget: row.secondary_cta_target,
+    isActive: row.is_active,
+    publishedAt: row.published_at,
     publishedLabel: formatPublishedLabel(row.published_at),
   };
 }
@@ -230,6 +253,7 @@ function mapProfileState(profile, referralSummary, defaultState, inviterProfile 
   return {
     epoch: profile.epoch,
     selectedRank: profile.selected_rank,
+    currentRank: profile.current_rank || "miner",
     activeReferrals: referralSummary.activeReferrals,
     totalReferrals: referralSummary.totalReferrals,
     joinedEarly,
@@ -327,6 +351,23 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     };
   }
 
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("bootstrap", {
+      initData: identity.initData,
+    });
+
+    return {
+      usingSupabase: true,
+      profileId: result.profileId,
+      state: result.state,
+      announcement: result.announcement,
+      referrals: result.referrals,
+      leaderboard: result.leaderboard,
+      protocol: result.protocol || null,
+      isAdmin: Boolean(result.isAdmin),
+    };
+  }
+
   const profile = await ensureProfile(defaultState, identity);
   const snapshot = await fetchAppSnapshot(profile, defaultState);
 
@@ -337,11 +378,31 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     announcement: snapshot.announcement,
     referrals: snapshot.referrals,
     leaderboard: snapshot.leaderboard,
+    protocol: null,
+    isAdmin: false,
   };
 }
 
-export async function persistProfileState({ state, currentRank, currentRate, profileId, identity = null }) {
+export async function persistProfileState({
+  state,
+  currentRank,
+  currentRate,
+  currentEpoch,
+  profileId,
+  identity = null,
+}) {
   if (!hasSupabaseConfig || !supabase) return;
+
+  if (identity?.initData) {
+    await invokeSecureAppApi("persist_profile", {
+      initData: identity.initData,
+      state,
+      currentRank,
+      currentRate,
+      currentEpoch,
+    });
+    return;
+  }
 
   const joinedEarly = isEarlyAdopterDate(state.profileCreatedAt);
 
@@ -360,7 +421,7 @@ export async function persistProfileState({ state, currentRank, currentRate, pro
     referral_code_applied_at: state.referralCodeAppliedAt || null,
     selected_rank: state.selectedRank,
     current_rank: currentRank,
-    epoch: state.epoch,
+    epoch: currentEpoch,
     active_referrals: state.activeReferrals,
     total_referrals: state.totalReferrals,
     total_mined: state.totalMined,
@@ -381,8 +442,15 @@ export async function persistProfileState({ state, currentRank, currentRate, pro
   }
 }
 
-export async function applyReferralCode({ profileId, code }) {
+export async function applyReferralCode({ profileId, code, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    return invokeSecureAppApi("apply_referral_code", {
+      initData: identity.initData,
+      code,
+    });
+  }
 
   const { data: profile, error } = await supabase
     .from("profiles")
@@ -398,8 +466,17 @@ export async function applyReferralCode({ profileId, code }) {
   });
 }
 
-export async function createReferralMember({ profileId, username, rank }) {
+export async function createReferralMember({ profileId, username, rank, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("create_referral_member", {
+      initData: identity.initData,
+      username,
+      rank,
+    });
+    return result.referral;
+  }
 
   const payload = {
     referrer_profile_id: profileId,
@@ -418,8 +495,17 @@ export async function createReferralMember({ profileId, username, rank }) {
   return mapReferralRow(data);
 }
 
-export async function updateReferralMember({ referralId, patch }) {
+export async function updateReferralMember({ referralId, patch, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("update_referral_member", {
+      initData: identity.initData,
+      referralId,
+      patch,
+    });
+    return result.referral;
+  }
 
   const updatePayload = {};
   if (typeof patch.is_active === "boolean") updatePayload.is_active = patch.is_active;
@@ -436,8 +522,16 @@ export async function updateReferralMember({ referralId, patch }) {
   return mapReferralRow(data);
 }
 
-export async function remindReferralMember(referralId) {
+export async function remindReferralMember(referralId, identity = null) {
   if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("remind_referral_member", {
+      initData: identity.initData,
+      referralId,
+    });
+    return result.referral;
+  }
 
   const { data, error } = await supabase
     .from("referrals")
@@ -450,8 +544,15 @@ export async function remindReferralMember(referralId) {
   return mapReferralRow(data);
 }
 
-export async function remindInactiveReferralMembers(profileId) {
+export async function remindInactiveReferralMembers(profileId, identity = null) {
   if (!hasSupabaseConfig || !supabase) return [];
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("remind_inactive_referral_members", {
+      initData: identity.initData,
+    });
+    return result.referrals;
+  }
 
   const now = new Date().toISOString();
   const { data, error } = await supabase
@@ -463,6 +564,151 @@ export async function remindInactiveReferralMembers(profileId) {
 
   if (error) throw error;
   return (data || []).map(mapReferralRow);
+}
+
+export async function listAnnouncements() {
+  if (!hasSupabaseConfig || !supabase) return [];
+
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("*")
+    .order("published_at", { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(mapAnnouncementRow);
+}
+
+export async function listAdminAnnouncements(identity = null) {
+  if (!hasSupabaseConfig || !supabase) return [];
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("list_admin_announcements", {
+      initData: identity.initData,
+    });
+    return result.announcements || [];
+  }
+
+  return listAnnouncements();
+}
+
+export async function saveAnnouncement(announcement, identity = null) {
+  if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("save_announcement", {
+      initData: identity.initData,
+      announcement,
+    });
+    return result.announcement;
+  }
+
+  const slugBase =
+    announcement.slug ||
+    announcement.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const payload = {
+    slug: slugBase || `announcement-${Date.now()}`,
+    eyebrow: announcement.eyebrow || "@SFOXCoreTeam",
+    title: announcement.title,
+    body: announcement.body,
+    primary_cta_label: announcement.primaryCtaLabel || "Announcement",
+    secondary_cta_label: announcement.secondaryCtaLabel || "Open forum",
+    primary_cta_target: announcement.primaryCtaTarget || null,
+    secondary_cta_target: announcement.secondaryCtaTarget || null,
+    is_active: announcement.isActive ?? true,
+    published_at: announcement.publishedAt || new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("announcements")
+    .upsert(payload, { onConflict: "slug" })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapAnnouncementRow(data);
+}
+
+export async function toggleAnnouncementActive({ slug, isActive, identity = null }) {
+  if (!hasSupabaseConfig || !supabase) return null;
+
+  if (identity?.initData) {
+    const result = await invokeSecureAppApi("toggle_announcement_active", {
+      initData: identity.initData,
+      slug,
+      isActive,
+    });
+    return result.announcement;
+  }
+
+  const { data, error } = await supabase
+    .from("announcements")
+    .update({ is_active: isActive })
+    .eq("slug", slug)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapAnnouncementRow(data);
+}
+
+export async function recordMiningClaim({
+  profileId,
+  epoch,
+  sessionStartedAt,
+  sessionEndedAt,
+  claimedAt,
+  amount,
+  identity = null,
+}) {
+  if (!hasSupabaseConfig || !supabase || !profileId) return null;
+
+  if (identity?.initData) {
+    return invokeSecureAppApi("record_mining_claim", {
+      initData: identity.initData,
+      sessionStartedAt,
+      sessionEndedAt,
+      claimedAt,
+      amount,
+      epoch,
+    });
+  }
+
+  const sessionStartIso = new Date(sessionStartedAt).toISOString();
+  const sessionEndIso = new Date(sessionEndedAt).toISOString();
+  const claimedAtIso = new Date(claimedAt).toISOString();
+  const amountValue = Number(amount.toFixed(5));
+
+  const { data: claim, error: claimError } = await supabase
+    .from("mining_claims")
+    .insert({
+      profile_id: profileId,
+      epoch,
+      session_started_at: sessionStartIso,
+      session_ended_at: sessionEndIso,
+      claimed_at: claimedAtIso,
+      amount: amountValue,
+    })
+    .select("id")
+    .single();
+
+  if (claimError) throw claimError;
+
+  const { error: eventError } = await supabase.from("supply_events").insert({
+    bucket: "community_mining",
+    profile_id: profileId,
+    amount: amountValue,
+    reference_type: "mining_claim",
+    reference_id: claim.id,
+    notes: `Epoch ${epoch} mining claim`,
+  });
+
+  if (eventError) throw eventError;
+
+  return claim;
 }
 
 export function subscribeToAppData({ profileId, defaultState, onData, onError }) {
