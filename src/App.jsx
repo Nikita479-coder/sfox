@@ -377,17 +377,23 @@ function getInitialTab() {
   return allowedTabs.has(tab) ? tab : "news";
 }
 
+function isTelegramWebAppAvailable() {
+  if (typeof window === "undefined") return false;
+  return Boolean(window.Telegram?.WebApp);
+}
+
 function App() {
   const [telegramIdentity, setTelegramIdentity] = useState(null);
   const [telegramReady, setTelegramReady] = useState(false);
 
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 40;
+    const hasTelegramWebApp = isTelegramWebAppAvailable();
 
     const tryResolveIdentity = () => {
       const identity = getTelegramIdentity();
-      if (identity) {
+      if (identity?.initData) {
         setTelegramIdentity(identity);
         setTelegramReady(true);
         return;
@@ -397,6 +403,12 @@ function App() {
       if (attempts < maxAttempts) {
         window.setTimeout(tryResolveIdentity, 250);
       } else {
+        if (identity) {
+          setTelegramIdentity(identity);
+        }
+        if (hasTelegramWebApp) {
+          console.error("Telegram Mini App identity is missing signed initData.");
+        }
         setTelegramReady(true);
       }
     };
@@ -513,8 +525,15 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const hasTelegramWebApp = isTelegramWebAppAvailable();
 
     if (!telegramReady) {
+      return undefined;
+    }
+
+    if (hasSupabaseConfig && hasTelegramWebApp && !telegramIdentity?.initData) {
+      console.error("SFOX could not verify Telegram identity. Live data bootstrap was skipped.");
+      setBootstrapReady(true);
       return undefined;
     }
 
@@ -681,6 +700,7 @@ function App() {
 
   useEffect(() => {
     if (!bootstrapReady) return;
+    if (hasSupabaseConfig && isTelegramWebAppAvailable() && !telegramIdentity?.initData) return;
 
     persistProfileState({
       state,

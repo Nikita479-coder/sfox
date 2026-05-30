@@ -6,6 +6,14 @@ export const fallbackLeaderboardEntries = [];
 export const fallbackReferralMembers = [];
 const SESSION_HOURS = 24;
 
+function requireSecureTelegramIdentity(identity, actionLabel = "complete this action") {
+  if (identity?.initData) {
+    return;
+  }
+
+  throw new Error(`Open SFOX from Telegram to ${actionLabel}.`);
+}
+
 async function invokeSecureAppApi(action, payload = {}) {
   if (!hasSupabaseConfig || !supabase) {
     throw new Error("Supabase is not configured");
@@ -351,35 +359,21 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     };
   }
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("bootstrap", {
-      initData: identity.initData,
-    });
+  requireSecureTelegramIdentity(identity, "load your live SFOX profile");
 
-    return {
-      usingSupabase: true,
-      profileId: result.profileId,
-      state: result.state,
-      announcement: result.announcement,
-      referrals: result.referrals,
-      leaderboard: result.leaderboard,
-      protocol: result.protocol || null,
-      isAdmin: Boolean(result.isAdmin),
-    };
-  }
-
-  const profile = await ensureProfile(defaultState, identity);
-  const snapshot = await fetchAppSnapshot(profile, defaultState);
+  const result = await invokeSecureAppApi("bootstrap", {
+    initData: identity.initData,
+  });
 
   return {
     usingSupabase: true,
-    profileId: snapshot.profileId,
-    state: snapshot.state,
-    announcement: snapshot.announcement,
-    referrals: snapshot.referrals,
-    leaderboard: snapshot.leaderboard,
-    protocol: null,
-    isAdmin: false,
+    profileId: result.profileId,
+    state: result.state,
+    announcement: result.announcement,
+    referrals: result.referrals,
+    leaderboard: result.leaderboard,
+    protocol: result.protocol || null,
+    isAdmin: Boolean(result.isAdmin),
   };
 }
 
@@ -393,177 +387,70 @@ export async function persistProfileState({
 }) {
   if (!hasSupabaseConfig || !supabase) return;
 
-  if (identity?.initData) {
-    await invokeSecureAppApi("persist_profile", {
-      initData: identity.initData,
-      state,
-      currentRank,
-      currentRate,
-      currentEpoch,
-    });
-    return;
-  }
+  requireSecureTelegramIdentity(identity, "save your mining session");
 
-  const joinedEarly = isEarlyAdopterDate(state.profileCreatedAt);
-
-  const payload = {
-    username: state.username,
-    invite_code: state.inviteCode,
-    telegram_user_id: identity?.telegramUserId || null,
-    telegram_username: identity?.username || state.username,
-    telegram_first_name: identity?.firstName || null,
-    telegram_last_name: identity?.lastName || null,
-    telegram_photo_url: identity?.photoUrl || null,
-    telegram_language_code: identity?.languageCode || null,
-    telegram_is_premium: identity?.isPremium || false,
-    joined_early: joinedEarly,
-    referred_by_profile_id: state.referredByProfileId || null,
-    referral_code_applied_at: state.referralCodeAppliedAt || null,
-    selected_rank: state.selectedRank,
-    current_rank: currentRank,
-    epoch: currentEpoch,
-    active_referrals: state.activeReferrals,
-    total_referrals: state.totalReferrals,
-    total_mined: state.totalMined,
-    current_rate: currentRate,
-    mining_started_at: state.miningStartedAt ? new Date(state.miningStartedAt).toISOString() : null,
-    session_claimed: state.sessionClaimed,
-    last_claimed_at: state.lastClaimedAt ? new Date(state.lastClaimedAt).toISOString() : null,
-  };
-
-  const query = profileId
-    ? supabase.from("profiles").update(payload).eq("id", profileId)
-    : supabase.from("profiles").upsert(payload, { onConflict: identity?.telegramUserId ? "telegram_user_id" : "username" });
-
-  const { error } = await query;
-
-  if (error) {
-    throw error;
-  }
+  await invokeSecureAppApi("persist_profile", {
+    initData: identity.initData,
+    state,
+    currentRank,
+    currentRate,
+    currentEpoch,
+  });
 }
 
 export async function applyReferralCode({ profileId, code, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "apply a referral code");
 
-  if (identity?.initData) {
-    return invokeSecureAppApi("apply_referral_code", {
-      initData: identity.initData,
-      code,
-    });
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", profileId)
-    .single();
-
-  if (error) throw error;
-
-  return linkReferralToProfile({
-    profile,
-    referralCode: code,
+  return invokeSecureAppApi("apply_referral_code", {
+    initData: identity.initData,
+    code,
   });
 }
 
 export async function createReferralMember({ profileId, username, rank, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "add a referral member");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("create_referral_member", {
-      initData: identity.initData,
-      username,
-      rank,
-    });
-    return result.referral;
-  }
-
-  const payload = {
-    referrer_profile_id: profileId,
-    referred_username: username,
-    referred_rank: rank,
-    is_active: false,
-  };
-
-  const { data, error } = await supabase
-    .from("referrals")
-    .insert(payload)
-    .select("id, referred_username, referred_rank, is_active, last_reminded_at")
-    .single();
-
-  if (error) throw error;
-  return mapReferralRow(data);
+  const result = await invokeSecureAppApi("create_referral_member", {
+    initData: identity.initData,
+    username,
+    rank,
+  });
+  return result.referral;
 }
 
 export async function updateReferralMember({ referralId, patch, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "update this referral");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("update_referral_member", {
-      initData: identity.initData,
-      referralId,
-      patch,
-    });
-    return result.referral;
-  }
-
-  const updatePayload = {};
-  if (typeof patch.is_active === "boolean") updatePayload.is_active = patch.is_active;
-  if (patch.referred_rank) updatePayload.referred_rank = patch.referred_rank;
-
-  const { data, error } = await supabase
-    .from("referrals")
-    .update(updatePayload)
-    .eq("id", referralId)
-    .select("id, referred_username, referred_rank, is_active, last_reminded_at")
-    .single();
-
-  if (error) throw error;
-  return mapReferralRow(data);
+  const result = await invokeSecureAppApi("update_referral_member", {
+    initData: identity.initData,
+    referralId,
+    patch,
+  });
+  return result.referral;
 }
 
 export async function remindReferralMember(referralId, identity = null) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "send a reminder");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("remind_referral_member", {
-      initData: identity.initData,
-      referralId,
-    });
-    return result.referral;
-  }
-
-  const { data, error } = await supabase
-    .from("referrals")
-    .update({ last_reminded_at: new Date().toISOString() })
-    .eq("id", referralId)
-    .select("id, referred_username, referred_rank, is_active, last_reminded_at")
-    .single();
-
-  if (error) throw error;
-  return mapReferralRow(data);
+  const result = await invokeSecureAppApi("remind_referral_member", {
+    initData: identity.initData,
+    referralId,
+  });
+  return result.referral;
 }
 
 export async function remindInactiveReferralMembers(profileId, identity = null) {
   if (!hasSupabaseConfig || !supabase) return [];
+  requireSecureTelegramIdentity(identity, "remind inactive members");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("remind_inactive_referral_members", {
-      initData: identity.initData,
-    });
-    return result.referrals;
-  }
-
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("referrals")
-    .update({ last_reminded_at: now })
-    .eq("referrer_profile_id", profileId)
-    .eq("is_active", false)
-    .select("id, referred_username, referred_rank, is_active, last_reminded_at");
-
-  if (error) throw error;
-  return (data || []).map(mapReferralRow);
+  const result = await invokeSecureAppApi("remind_inactive_referral_members", {
+    initData: identity.initData,
+  });
+  return result.referrals;
 }
 
 export async function listAnnouncements() {
@@ -581,78 +468,35 @@ export async function listAnnouncements() {
 export async function listAdminAnnouncements(identity = null) {
   if (!hasSupabaseConfig || !supabase) return [];
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("list_admin_announcements", {
-      initData: identity.initData,
-    });
-    return result.announcements || [];
-  }
+  requireSecureTelegramIdentity(identity, "load admin announcements");
 
-  return listAnnouncements();
+  const result = await invokeSecureAppApi("list_admin_announcements", {
+    initData: identity.initData,
+  });
+  return result.announcements || [];
 }
 
 export async function saveAnnouncement(announcement, identity = null) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "save this announcement");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("save_announcement", {
-      initData: identity.initData,
-      announcement,
-    });
-    return result.announcement;
-  }
-
-  const slugBase =
-    announcement.slug ||
-    announcement.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-  const payload = {
-    slug: slugBase || `announcement-${Date.now()}`,
-    eyebrow: announcement.eyebrow || "@SFOXCoreTeam",
-    title: announcement.title,
-    body: announcement.body,
-    primary_cta_label: announcement.primaryCtaLabel || "Announcement",
-    secondary_cta_label: announcement.secondaryCtaLabel || "Open forum",
-    primary_cta_target: announcement.primaryCtaTarget || null,
-    secondary_cta_target: announcement.secondaryCtaTarget || null,
-    is_active: announcement.isActive ?? true,
-    published_at: announcement.publishedAt || new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
-    .from("announcements")
-    .upsert(payload, { onConflict: "slug" })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return mapAnnouncementRow(data);
+  const result = await invokeSecureAppApi("save_announcement", {
+    initData: identity.initData,
+    announcement,
+  });
+  return result.announcement;
 }
 
 export async function toggleAnnouncementActive({ slug, isActive, identity = null }) {
   if (!hasSupabaseConfig || !supabase) return null;
+  requireSecureTelegramIdentity(identity, "update this announcement");
 
-  if (identity?.initData) {
-    const result = await invokeSecureAppApi("toggle_announcement_active", {
-      initData: identity.initData,
-      slug,
-      isActive,
-    });
-    return result.announcement;
-  }
-
-  const { data, error } = await supabase
-    .from("announcements")
-    .update({ is_active: isActive })
-    .eq("slug", slug)
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return mapAnnouncementRow(data);
+  const result = await invokeSecureAppApi("toggle_announcement_active", {
+    initData: identity.initData,
+    slug,
+    isActive,
+  });
+  return result.announcement;
 }
 
 export async function recordMiningClaim({
@@ -665,50 +509,16 @@ export async function recordMiningClaim({
   identity = null,
 }) {
   if (!hasSupabaseConfig || !supabase || !profileId) return null;
+  requireSecureTelegramIdentity(identity, "claim your mining session");
 
-  if (identity?.initData) {
-    return invokeSecureAppApi("record_mining_claim", {
-      initData: identity.initData,
-      sessionStartedAt,
-      sessionEndedAt,
-      claimedAt,
-      amount,
-      epoch,
-    });
-  }
-
-  const sessionStartIso = new Date(sessionStartedAt).toISOString();
-  const sessionEndIso = new Date(sessionEndedAt).toISOString();
-  const claimedAtIso = new Date(claimedAt).toISOString();
-  const amountValue = Number(amount.toFixed(5));
-
-  const { data: claim, error: claimError } = await supabase
-    .from("mining_claims")
-    .insert({
-      profile_id: profileId,
-      epoch,
-      session_started_at: sessionStartIso,
-      session_ended_at: sessionEndIso,
-      claimed_at: claimedAtIso,
-      amount: amountValue,
-    })
-    .select("id")
-    .single();
-
-  if (claimError) throw claimError;
-
-  const { error: eventError } = await supabase.from("supply_events").insert({
-    bucket: "community_mining",
-    profile_id: profileId,
-    amount: amountValue,
-    reference_type: "mining_claim",
-    reference_id: claim.id,
-    notes: `Epoch ${epoch} mining claim`,
+  return invokeSecureAppApi("record_mining_claim", {
+    initData: identity.initData,
+    sessionStartedAt,
+    sessionEndedAt,
+    claimedAt,
+    amount,
+    epoch,
   });
-
-  if (eventError) throw eventError;
-
-  return claim;
 }
 
 export function subscribeToAppData({ profileId, defaultState, onData, onError }) {
