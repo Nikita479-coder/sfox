@@ -487,14 +487,14 @@ function App() {
   }, [state]);
 
   useEffect(() => {
-    if (!isAdmin || !usingSupabase) return;
+    if (!state.canManageAdmin || !usingSupabase) return;
 
     listAdminAnnouncements(telegramIdentity)
       .then((items) => setAdminAnnouncements(items))
       .catch((error) => {
         console.error("Failed to load admin announcements", error);
       });
-  }, [isAdmin, usingSupabase, announcement, telegramIdentity]);
+  }, [state.canManageAdmin, usingSupabase, announcement, telegramIdentity]);
 
   useEffect(() => {
     if (!telegramIdentity) return;
