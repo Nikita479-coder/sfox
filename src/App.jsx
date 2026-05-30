@@ -393,10 +393,12 @@ function App() {
 
     const tryResolveIdentity = () => {
       const identity = getTelegramIdentity();
-      if (identity?.initData) {
+      if (identity?.telegramUserId && identity?.username) {
         setTelegramIdentity(identity);
-        setTelegramReady(true);
-        return;
+        if (identity.initData || attempts >= 2) {
+          setTelegramReady(true);
+          return;
+        }
       }
 
       attempts += 1;
@@ -531,8 +533,8 @@ function App() {
       return undefined;
     }
 
-    if (hasSupabaseConfig && hasTelegramWebApp && !telegramIdentity?.initData) {
-      console.error("SFOX could not verify Telegram identity. Live data bootstrap was skipped.");
+    if (hasSupabaseConfig && hasTelegramWebApp && !telegramIdentity?.telegramUserId) {
+      console.error("SFOX could not read Telegram identity. Live data bootstrap was skipped.");
       setBootstrapReady(true);
       return undefined;
     }
@@ -701,7 +703,7 @@ function App() {
 
   useEffect(() => {
     if (!bootstrapReady) return;
-    if (hasSupabaseConfig && isTelegramWebAppAvailable() && !telegramIdentity?.initData) return;
+    if (hasSupabaseConfig && isTelegramWebAppAvailable() && !telegramIdentity?.telegramUserId) return;
 
     persistProfileState({
       state,

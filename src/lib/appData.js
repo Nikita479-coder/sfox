@@ -539,7 +539,7 @@ export async function recordMiningClaim({
 }
 
 export function subscribeToAppData({ profileId, defaultState, identity = null, onData, onError }) {
-  if (!hasSupabaseConfig || !supabase || !profileId || !identity?.initData) {
+  if (!hasSupabaseConfig || !supabase || !profileId || !identity?.telegramUserId || !identity?.username) {
     return () => {};
   }
 
