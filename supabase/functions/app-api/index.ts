@@ -16,6 +16,7 @@ const rankOrder: Record<string, number> = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "sfoxnetworkbot";
 const adminAllowlist = String(Deno.env.get("SFOX_ADMIN_USERNAMES") ?? "")
   .split(",")
   .map((value) => value.trim().toLowerCase())
@@ -49,6 +50,10 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
     chat_id: chatId,
     text,
   });
+}
+
+function buildTelegramReferralLink(inviteCode: string) {
+  return `https://t.me/${botUsername}?startapp=ref-${encodeURIComponent(String(inviteCode || "").trim())}`;
 }
 
 function json(body: unknown, status = 200) {
@@ -771,17 +776,24 @@ Deno.serve(async (request) => {
         .eq("id", body.referralId)
         .eq("referrer_profile_id", profile.id)
         .select(
-          "id, referred_username, referred_rank, is_active, last_reminded_at, referred_profile:profiles!referrals_referred_profile_id_fkey(telegram_user_id)"
+          "id, referred_username, referred_rank, is_active, last_reminded_at, referred_profile_id, referred_profile:profiles!referrals_referred_profile_id_fkey(telegram_user_id)"
         )
         .single();
       if (error) throw error;
+      let delivery = "share_link";
       if (data?.referred_profile?.telegram_user_id) {
         await sendTelegramMessage(
           data.referred_profile.telegram_user_id,
           `${getProfileDisplayName(profile)} sent you a reminder to activate your SFOX mining session.`
         ).catch(console.error);
+        delivery = "telegram";
       }
-      return json({ ok: true, referral: mapReferralRow(data) });
+      return json({
+        ok: true,
+        referral: mapReferralRow(data),
+        delivery,
+        shareLink: delivery === "share_link" ? buildTelegramReferralLink(profile.invite_code) : null,
+      });
     }
 
     if (action === "remind_inactive_referral_members") {

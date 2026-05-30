@@ -2492,7 +2492,7 @@ textarea {
   }
 
   .topbar {
-    top: 14px;
+    top: 26px;
     left: 50%;
     transform: translateX(-50%);
     width: calc(100vw - 28px);

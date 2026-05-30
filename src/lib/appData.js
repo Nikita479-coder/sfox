@@ -468,11 +468,10 @@ export async function remindReferralMember(referralId, identity = null) {
   if (!hasSupabaseConfig || !supabase) return null;
   requireSecureTelegramIdentity(identity, "send a reminder");
 
-  const result = await invokeSecureAppApi("remind_referral_member", {
+  return invokeSecureAppApi("remind_referral_member", {
     initData: identity.initData,
     referralId,
   }, identity);
-  return result.referral;
 }
 
 export async function remindInactiveReferralMembers(profileId, identity = null) {

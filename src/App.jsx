@@ -20,7 +20,6 @@ import {
   saveAnnouncement,
   subscribeToAppData,
   toggleAnnouncementActive,
-  updateReferralMember,
 } from "./lib/appData";
 import { hasSupabaseConfig } from "./lib/supabase";
 import { EARLY_ADOPTER_REQUIREMENT_LABEL, NETWORK_START_AT, isEarlyAdopterDate } from "./lib/earlyAdopter";
@@ -1029,60 +1028,28 @@ function App() {
     }
   };
 
-  const handleToggleReferralMember = async (member) => {
-    setTeamBusy(true);
-    setTeamMessage("");
-
-    try {
-      if (usingSupabase && member.id) {
-        const updated = await updateReferralMember({
-          referralId: member.id,
-          patch: { is_active: !member.active },
-          identity: telegramIdentity,
-        });
-
-        const nextMembers = referrals.map((entry) =>
-          entry.id === member.id
-            ? {
-                ...entry,
-                active: updated.is_active,
-                last_reminded_at: updated.last_reminded_at,
-              }
-            : entry
-        );
-        applyReferralMembers(nextMembers);
-      } else {
-        const nextMembers = referrals.map((entry) =>
-          entry.id === member.id ? { ...entry, active: !entry.active } : entry
-        );
-        applyReferralMembers(nextMembers);
-      }
-
-      setTeamMessage(`${member.name} updated.`);
-    } catch (error) {
-      console.error("Failed to toggle referral member", error);
-      setTeamMessage("Could not update that member.");
-    } finally {
-      setTeamBusy(false);
-    }
-  };
-
   const handleRemindMember = async (member) => {
     setTeamBusy(true);
     setTeamMessage("");
 
     try {
       if (usingSupabase && member.id) {
-        const updated = await remindReferralMember(member.id, telegramIdentity);
+        const result = await remindReferralMember(member.id, telegramIdentity);
         const nextMembers = referrals.map((entry) =>
           entry.id === member.id
             ? {
                 ...entry,
-                last_reminded_at: updated.last_reminded_at,
+                last_reminded_at: result.referral.last_reminded_at,
               }
             : entry
         );
         applyReferralMembers(nextMembers);
+
+        if (result.delivery === "share_link" && result.shareLink) {
+          await navigator.clipboard.writeText(result.shareLink);
+          setTeamMessage(`Referral link copied for ${member.name}. Send it so they can join and activate mining.`);
+          return;
+        }
       }
 
       setTeamMessage(`Reminder sent to ${member.name}.`);
@@ -1771,7 +1738,7 @@ function App() {
                     <div>
                       <span className="reading-kicker">Team list</span>
                       <h2>Members</h2>
-                      <p>Focus on who is active, who needs a reminder, and who helps you reach the next rank.</p>
+                      <p>Focus on who is active, who needs a reminder, and who is contributing live to your mining boost.</p>
                     </div>
                     <div className="team-directory-actions">
                       <div className="referral-filters">
@@ -1814,14 +1781,6 @@ function App() {
                           <span className={`team-status-label ${member.active ? "active" : "inactive"}`}>
                             {member.active ? "Mining now" : "Needs reminder"}
                           </span>
-                          <button
-                            className={`member-toggle-button ${member.active ? "active" : "inactive"}`}
-                            type="button"
-                            onClick={() => handleToggleReferralMember(member)}
-                            disabled={teamBusy}
-                          >
-                            {member.active ? "Set inactive" : "Set active"}
-                          </button>
                           {!member.active && (
                             <button
                               className="member-remind-button"
