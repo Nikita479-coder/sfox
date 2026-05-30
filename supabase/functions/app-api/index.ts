@@ -192,6 +192,65 @@ function getGlobalEpoch(now = Date.now()) {
   return Math.max(0, Math.floor((now - start) / halvingMs));
 }
 
+function getBaseRate(epoch: number) {
+  return 1 / 2 ** Math.max(0, epoch);
+}
+
+function getRankConfig(rankKey: string) {
+  const rankMap: Record<string, { boost: number; referralRate: number }> = {
+    miner: { boost: 1, referralRate: 0 },
+    pioneer: { boost: 1.5, referralRate: 0.1 },
+    lord: { boost: 5, referralRate: 0.12 },
+    baron: { boost: 15, referralRate: 0.15 },
+    president: { boost: 30, referralRate: 0.2 },
+    titan: { boost: 50, referralRate: 0.25 },
+  };
+
+  return rankMap[rankKey] || rankMap.miner;
+}
+
+function getLiveMiningRate(rankKey: string, joinedEarly: boolean, activeReferrals: number, epoch: number) {
+  const rank = getRankConfig(rankKey);
+  const pioneerLifetimeBonus =
+    joinedEarly && rankKey !== "miner" && rankKey !== "pioneer"
+      ? getRankConfig("pioneer").boost
+      : 0;
+  const fixedMultiplier = rank.boost + pioneerLifetimeBonus;
+  const referralFactor = 1 + rank.referralRate * activeReferrals;
+  return getBaseRate(epoch) * fixedMultiplier * referralFactor;
+}
+
+function getSessionEndMs(miningStartedAt?: string | null) {
+  if (!miningStartedAt) return null;
+  const startedAt = new Date(miningStartedAt).getTime();
+  if (Number.isNaN(startedAt)) return null;
+  return startedAt + SESSION_HOURS * 60 * 60 * 1000;
+}
+
+function calculateAccrualProgress(profile: any, nowMs: number) {
+  const sessionEndMs = getSessionEndMs(profile.mining_started_at);
+  if (!profile?.mining_started_at || profile.session_claimed || !sessionEndMs) {
+    return {
+      sessionAccrued: Number(profile?.session_accrued || 0),
+      sessionAccrualUpdatedAt: profile?.session_accrual_updated_at || profile?.mining_started_at || null,
+    };
+  }
+
+  const startedAtMs = new Date(profile.mining_started_at).getTime();
+  const anchorMs = profile.session_accrual_updated_at
+    ? new Date(profile.session_accrual_updated_at).getTime()
+    : startedAtMs;
+  const safeAnchorMs = Number.isNaN(anchorMs) ? startedAtMs : anchorMs;
+  const cutoffMs = Math.min(nowMs, sessionEndMs);
+  const elapsedHours = Math.max(0, cutoffMs - safeAnchorMs) / 3600000;
+  const additionalAmount = Number(profile.current_rate || 0) * elapsedHours;
+
+  return {
+    sessionAccrued: Number(profile.session_accrued || 0) + additionalAmount,
+    sessionAccrualUpdatedAt: new Date(cutoffMs).toISOString(),
+  };
+}
+
 function isReferralProfileActivelyMining(profile: { mining_started_at?: string | null }) {
   if (!profile?.mining_started_at) return false;
   const startedAt = new Date(profile.mining_started_at).getTime();
@@ -317,6 +376,10 @@ function mapProfileState(profile: any, referralSummary: any, inviterProfile: any
     joinedEarly: isEarlyAdopterDate(profile.created_at),
     totalMined: Number(profile.total_mined),
     miningStartedAt: profile.mining_started_at ? new Date(profile.mining_started_at).getTime() : null,
+    sessionAccrued: Number(profile.session_accrued || 0),
+    sessionAccrualUpdatedAt: profile.session_accrual_updated_at
+      ? new Date(profile.session_accrual_updated_at).getTime()
+      : null,
     sessionClaimed: profile.session_claimed,
     lastClaimedAt: profile.last_claimed_at ? new Date(profile.last_claimed_at).getTime() : null,
     inviteCode: profile.invite_code,
@@ -400,14 +463,24 @@ async function fetchSnapshot(profile: any) {
   const unlockedRank = getEligibleRank(referralSummary.activeReferrals, isEarlyAdopterDate(profile.created_at));
   const permanentRank = getHigherRank(profile.current_rank || "miner", unlockedRank);
   const globalEpoch = getGlobalEpoch();
+  const liveRate = getLiveMiningRate(
+    permanentRank,
+    isEarlyAdopterDate(profile.created_at),
+    referralSummary.activeReferrals,
+    globalEpoch
+  );
   const claimedTotal = await getClaimedTotal(profile.id);
+  const accrual = calculateAccrualProgress(profile, Date.now());
   const protocol = await getProtocolSnapshot();
 
   let snapshotProfile = profile;
   if (
     profile.current_rank !== permanentRank ||
     profile.epoch !== globalEpoch ||
-    Number(profile.total_mined || 0) !== claimedTotal
+    Number(profile.total_mined || 0) !== claimedTotal ||
+    Number(profile.current_rate || 0) !== liveRate ||
+    Number(profile.session_accrued || 0) !== Number(accrual.sessionAccrued.toFixed(6)) ||
+    String(profile.session_accrual_updated_at || "") !== String(accrual.sessionAccrualUpdatedAt || "")
   ) {
     const { data: updatedProfile, error: profileError } = await supabase
       .from("profiles")
@@ -417,6 +490,9 @@ async function fetchSnapshot(profile: any) {
         active_referrals: referralSummary.activeReferrals,
         total_referrals: referralSummary.totalReferrals,
         total_mined: claimedTotal,
+        current_rate: Number(liveRate.toFixed(6)),
+        session_accrued: Number(accrual.sessionAccrued.toFixed(6)),
+        session_accrual_updated_at: accrual.sessionAccrualUpdatedAt,
       })
       .eq("id", profile.id)
       .select("*")
@@ -474,6 +550,8 @@ async function ensureProfile(identity: any) {
       total_referrals: 0,
       total_mined: 0,
       current_rate: 1,
+      session_accrued: 0,
+      session_accrual_updated_at: null,
       session_claimed: true,
     })
     .select("*")
@@ -630,6 +708,12 @@ Deno.serve(async (request) => {
           active_referrals: summary.activeReferrals,
           total_referrals: summary.totalReferrals,
           current_rate: body.currentRate ?? profile.current_rate,
+          session_accrued: Number(body.state?.sessionAccrued ?? profile.session_accrued ?? 0),
+          session_accrual_updated_at: body.state?.sessionAccrualUpdatedAt
+            ? new Date(body.state.sessionAccrualUpdatedAt).toISOString()
+            : body.state?.miningStartedAt
+              ? new Date(body.state.miningStartedAt).toISOString()
+              : null,
           mining_started_at: body.state?.miningStartedAt
             ? new Date(body.state.miningStartedAt).toISOString()
             : null,
@@ -722,10 +806,14 @@ Deno.serve(async (request) => {
     }
 
     if (action === "record_mining_claim") {
-      const sessionStartedAt = new Date(body.sessionStartedAt).toISOString();
+      const sessionStartedAt = new Date(body.sessionStartedAt || profile.mining_started_at).toISOString();
       const sessionEndedAt = new Date(body.sessionEndedAt).toISOString();
       const claimedAt = new Date(body.claimedAt).toISOString();
-      const amount = Number(Number(body.amount || 0).toFixed(5));
+      const finalAccrual = calculateAccrualProgress(
+        profile,
+        new Date(sessionEndedAt).getTime()
+      );
+      const amount = Number(Number(finalAccrual.sessionAccrued || 0).toFixed(5));
 
       const { data: claim, error: claimError } = await supabase
         .from("mining_claims")
@@ -755,6 +843,9 @@ Deno.serve(async (request) => {
         .from("profiles")
         .update({
           total_mined: Number(profile.total_mined) + amount,
+          current_rate: 0,
+          session_accrued: 0,
+          session_accrual_updated_at: null,
           mining_started_at: null,
           session_claimed: true,
           last_claimed_at: claimedAt,
@@ -763,7 +854,11 @@ Deno.serve(async (request) => {
         .eq("id", profile.id);
       if (profileError) throw profileError;
 
-      return json({ ok: true });
+      return json({
+        ok: true,
+        amount,
+        totalMined: Number(profile.total_mined) + amount,
+      });
     }
 
     if (action === "save_announcement") {

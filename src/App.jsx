@@ -106,6 +106,8 @@ const defaultState = {
   totalReferrals: 0,
   joinedEarly: isEarlyAdopterDate(),
   totalMined: 0,
+  sessionAccrued: 0,
+  sessionAccrualUpdatedAt: null,
   miningStartedAt: null,
   sessionClaimed: true,
   lastClaimedAt: null,
@@ -344,6 +346,18 @@ function getSessionEnd(miningStartedAt) {
   return miningStartedAt + SESSION_HOURS * 60 * 60 * 1000;
 }
 
+function getSessionAccrual(state, ratePerHour, now) {
+  if (!state.miningStartedAt) return 0;
+
+  const sessionEnd = getSessionEnd(state.miningStartedAt);
+  if (!sessionEnd) return Number(state.sessionAccrued || 0);
+
+  const anchor = state.sessionAccrualUpdatedAt || state.miningStartedAt;
+  const cutoff = Math.min(now, sessionEnd);
+  const elapsedHours = Math.max(0, cutoff - anchor) / 3600000;
+  return Number(state.sessionAccrued || 0) + ratePerHour * elapsedHours;
+}
+
 function getNextHalvingAt(epoch) {
   const start = new Date(NETWORK_START_AT).getTime();
   const halvingMs = HALVING_DAYS * 24 * 60 * 60 * 1000;
@@ -464,6 +478,7 @@ function App() {
     secondaryCtaTarget: "",
     isActive: true,
   });
+  const lastAppliedRateRef = useRef(null);
 
   const openExternalTarget = (target) => {
     if (!target) return false;
@@ -676,9 +691,7 @@ function App() {
       state.miningStartedAt && sessionEnd && now >= sessionEnd && !state.sessionClaimed
     );
     const remainingMs = isRunning ? sessionEnd - now : 0;
-    const elapsedMs = state.miningStartedAt ? Math.max(0, now - state.miningStartedAt) : 0;
-    const cappedElapsedHours = Math.min(elapsedMs / 3600000, SESSION_HOURS);
-    const sessionEarned = state.miningStartedAt ? totalRate * cappedElapsedHours : 0;
+    const sessionEarned = getSessionAccrual(state, totalRate, now);
 
     return {
       baseRate,
@@ -694,7 +707,18 @@ function App() {
       claimReady,
       remainingMs,
     };
-  }, [effectiveRankKey, globalEpoch, now, rank, state.activeReferrals, state.joinedEarly, state.miningStartedAt, state.sessionClaimed]);
+  }, [
+    effectiveRankKey,
+    globalEpoch,
+    now,
+    rank,
+    state.activeReferrals,
+    state.joinedEarly,
+    state.miningStartedAt,
+    state.sessionAccrued,
+    state.sessionAccrualUpdatedAt,
+    state.sessionClaimed,
+  ]);
 
   useEffect(() => {
     if (state.currentRank === permanentRankKey) return;
@@ -704,6 +728,45 @@ function App() {
   const handleStatePatch = (patch) => {
     setState((current) => ({ ...current, ...patch }));
   };
+
+  useEffect(() => {
+    if (!state.miningStartedAt || state.sessionClaimed) {
+      lastAppliedRateRef.current = mining.totalRate;
+      return;
+    }
+
+    const previousRate = lastAppliedRateRef.current;
+    if (previousRate == null) {
+      lastAppliedRateRef.current = mining.totalRate;
+      return;
+    }
+
+    if (Math.abs(previousRate - mining.totalRate) < 1e-12) {
+      return;
+    }
+
+    const anchor = state.sessionAccrualUpdatedAt || state.miningStartedAt;
+    const sessionEnd = getSessionEnd(state.miningStartedAt);
+    const cutoff = Math.min(now, sessionEnd || now);
+    if (cutoff <= anchor) {
+      lastAppliedRateRef.current = mining.totalRate;
+      return;
+    }
+
+    const accruedAddition = previousRate * ((cutoff - anchor) / 3600000);
+    setState((current) => ({
+      ...current,
+      sessionAccrued: Number(current.sessionAccrued || 0) + accruedAddition,
+      sessionAccrualUpdatedAt: cutoff,
+    }));
+    lastAppliedRateRef.current = mining.totalRate;
+  }, [
+    mining.totalRate,
+    now,
+    state.miningStartedAt,
+    state.sessionAccrualUpdatedAt,
+    state.sessionClaimed,
+  ]);
 
   const applyReferralMembers = (nextMembers) => {
     const summary = buildReferralSummary(
@@ -732,14 +795,19 @@ function App() {
     const startedAt = Date.now();
     const nextState = {
       ...state,
+      sessionAccrued: 0,
+      sessionAccrualUpdatedAt: startedAt,
       miningStartedAt: startedAt,
       sessionClaimed: false,
     };
 
     handleStatePatch({
+      sessionAccrued: 0,
+      sessionAccrualUpdatedAt: startedAt,
       miningStartedAt: startedAt,
       sessionClaimed: false,
     });
+    lastAppliedRateRef.current = mining.totalRate;
 
     if (!bootstrapReady) return;
 
@@ -755,6 +823,8 @@ function App() {
     } catch (error) {
       console.error("Failed to start mining session", error);
       handleStatePatch({
+        sessionAccrued: 0,
+        sessionAccrualUpdatedAt: null,
         miningStartedAt: state.miningStartedAt,
         sessionClaimed: state.sessionClaimed,
       });
@@ -767,7 +837,7 @@ function App() {
 
     try {
       if (usingSupabase && profileId && state.miningStartedAt && mining.sessionEnd) {
-        await recordMiningClaim({
+        const claimResult = await recordMiningClaim({
           profileId,
           epoch: globalEpoch,
           sessionStartedAt: state.miningStartedAt,
@@ -776,10 +846,24 @@ function App() {
           amount: mining.sessionReward,
           identity: telegramIdentity,
         });
+
+        handleStatePatch({
+          totalMined: Number(claimResult?.totalMined ?? state.totalMined + mining.sessionEarned),
+          sessionAccrued: 0,
+          sessionAccrualUpdatedAt: null,
+          miningStartedAt: null,
+          sessionClaimed: true,
+          lastClaimedAt: claimedAt,
+          currentRank: permanentRankKey,
+        });
+        lastAppliedRateRef.current = 0;
+        return;
       }
 
       handleStatePatch({
-        totalMined: state.totalMined + mining.sessionReward,
+        totalMined: state.totalMined + mining.sessionEarned,
+        sessionAccrued: 0,
+        sessionAccrualUpdatedAt: null,
         miningStartedAt: null,
         sessionClaimed: true,
         lastClaimedAt: claimedAt,

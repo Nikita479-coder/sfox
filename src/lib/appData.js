@@ -96,6 +96,8 @@ function buildProfilePayload(defaultState, identity) {
     total_referrals: defaultState.totalReferrals,
     total_mined: defaultState.totalMined,
     current_rate: 1,
+    session_accrued: defaultState.sessionAccrued,
+    session_accrual_updated_at: defaultState.sessionAccrualUpdatedAt,
     mining_started_at: defaultState.miningStartedAt,
     session_claimed: defaultState.sessionClaimed,
     last_claimed_at: defaultState.lastClaimedAt,
@@ -292,6 +294,10 @@ function mapProfileState(profile, referralSummary, defaultState, inviterProfile 
     totalReferrals: referralSummary.totalReferrals,
     joinedEarly,
     totalMined: Number(profile.total_mined),
+    sessionAccrued: Number(profile.session_accrued || 0),
+    sessionAccrualUpdatedAt: profile.session_accrual_updated_at
+      ? new Date(profile.session_accrual_updated_at).getTime()
+      : null,
     miningStartedAt: profile.mining_started_at ? new Date(profile.mining_started_at).getTime() : null,
     sessionClaimed: profile.session_claimed,
     lastClaimedAt: profile.last_claimed_at ? new Date(profile.last_claimed_at).getTime() : null,
