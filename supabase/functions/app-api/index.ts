@@ -311,14 +311,23 @@ function mapProfileState(profile: any, referralSummary: any, inviterProfile: any
   };
 }
 
-async function fetchProfileByTelegram(identity: any) {
-  const { data, error } = await supabase
+async function fetchProfileByIdentity(identity: any) {
+  const { data: telegramMatch, error: telegramError } = await supabase
     .from("profiles")
     .select("*")
     .eq("telegram_user_id", identity.telegramUserId)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (telegramError) throw telegramError;
+  if (telegramMatch) return telegramMatch;
+
+  const { data: usernameMatch, error: usernameError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("username", identity.username)
+    .maybeSingle();
+  if (usernameError) throw usernameError;
+
+  return usernameMatch;
 }
 
 async function fetchSnapshot(profile: any) {
@@ -404,7 +413,7 @@ async function fetchSnapshot(profile: any) {
 }
 
 async function ensureProfile(identity: any) {
-  const existing = await fetchProfileByTelegram(identity);
+  const existing = await fetchProfileByIdentity(identity);
   const basePatch = {
     username: identity.username,
     invite_code: buildInviteCode(identity.username, identity.telegramUserId),

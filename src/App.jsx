@@ -740,12 +740,38 @@ function App() {
     }));
   };
 
-  const handleStartMining = () => {
+  const handleStartMining = async () => {
     if (mining.isRunning || mining.claimReady) return;
+    const startedAt = Date.now();
+    const nextState = {
+      ...state,
+      miningStartedAt: startedAt,
+      sessionClaimed: false,
+    };
+
     handleStatePatch({
-      miningStartedAt: Date.now(),
+      miningStartedAt: startedAt,
       sessionClaimed: false,
     });
+
+    if (!bootstrapReady) return;
+
+    try {
+      await persistProfileState({
+        state: nextState,
+        currentRank: permanentRankKey,
+        currentRate: mining.totalRate,
+        currentEpoch: globalEpoch,
+        profileId,
+        identity: telegramIdentity,
+      });
+    } catch (error) {
+      console.error("Failed to start mining session", error);
+      handleStatePatch({
+        miningStartedAt: state.miningStartedAt,
+        sessionClaimed: state.sessionClaimed,
+      });
+    }
   };
 
   const handleClaimMining = async () => {
