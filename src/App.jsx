@@ -701,22 +701,6 @@ function App() {
     setState((current) => ({ ...current, currentRank: permanentRankKey }));
   }, [permanentRankKey, state.currentRank]);
 
-  useEffect(() => {
-    if (!bootstrapReady) return;
-    if (hasSupabaseConfig && isTelegramWebAppAvailable() && !telegramIdentity?.telegramUserId) return;
-
-    persistProfileState({
-      state,
-      currentRank: permanentRankKey,
-      currentRate: mining.totalRate,
-      currentEpoch: globalEpoch,
-      profileId,
-      identity: telegramIdentity,
-    }).catch((error) => {
-      console.error("Failed to persist profile state", error);
-    });
-  }, [bootstrapReady, globalEpoch, mining.totalRate, permanentRankKey, profileId, state, telegramIdentity]);
-
   const handleStatePatch = (patch) => {
     setState((current) => ({ ...current, ...patch }));
   };
