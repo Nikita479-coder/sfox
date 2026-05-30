@@ -7,14 +7,30 @@ export const fallbackReferralMembers = [];
 const SESSION_HOURS = 24;
 
 function requireSecureTelegramIdentity(identity, actionLabel = "complete this action") {
-  if (identity?.initData) {
+  if (identity?.telegramUserId && identity?.username) {
     return;
   }
 
   throw new Error(`Open SFOX from Telegram to ${actionLabel}.`);
 }
 
-async function invokeSecureAppApi(action, payload = {}) {
+function buildIdentityPayload(identity = null) {
+  if (!identity) return null;
+
+  return {
+    telegramUserId: identity.telegramUserId || null,
+    username: identity.username || null,
+    firstName: identity.firstName || "",
+    lastName: identity.lastName || "",
+    photoUrl: identity.photoUrl || "",
+    languageCode: identity.languageCode || "",
+    isPremium: Boolean(identity.isPremium),
+    inviteCode: identity.inviteCode || null,
+    startParam: identity.startParam || "",
+  };
+}
+
+async function invokeSecureAppApi(action, payload = {}, identity = null) {
   if (!hasSupabaseConfig || !supabase) {
     throw new Error("Supabase is not configured");
   }
@@ -22,6 +38,7 @@ async function invokeSecureAppApi(action, payload = {}) {
   const { data, error } = await supabase.functions.invoke("app-api", {
     body: {
       action,
+      identity: buildIdentityPayload(identity),
       ...payload,
     },
   });
@@ -363,7 +380,7 @@ export async function loadAppBootstrap(defaultState, identity = null) {
 
   const result = await invokeSecureAppApi("bootstrap", {
     initData: identity.initData,
-  });
+  }, identity);
 
   return {
     usingSupabase: true,
@@ -395,7 +412,7 @@ export async function persistProfileState({
     currentRank,
     currentRate,
     currentEpoch,
-  });
+  }, identity);
 }
 
 export async function applyReferralCode({ profileId, code, identity = null }) {
@@ -405,7 +422,7 @@ export async function applyReferralCode({ profileId, code, identity = null }) {
   return invokeSecureAppApi("apply_referral_code", {
     initData: identity.initData,
     code,
-  });
+  }, identity);
 }
 
 export async function createReferralMember({ profileId, username, rank, identity = null }) {
@@ -416,7 +433,7 @@ export async function createReferralMember({ profileId, username, rank, identity
     initData: identity.initData,
     username,
     rank,
-  });
+  }, identity);
   return result.referral;
 }
 
@@ -428,7 +445,7 @@ export async function updateReferralMember({ referralId, patch, identity = null 
     initData: identity.initData,
     referralId,
     patch,
-  });
+  }, identity);
   return result.referral;
 }
 
@@ -439,7 +456,7 @@ export async function remindReferralMember(referralId, identity = null) {
   const result = await invokeSecureAppApi("remind_referral_member", {
     initData: identity.initData,
     referralId,
-  });
+  }, identity);
   return result.referral;
 }
 
@@ -449,7 +466,7 @@ export async function remindInactiveReferralMembers(profileId, identity = null) 
 
   const result = await invokeSecureAppApi("remind_inactive_referral_members", {
     initData: identity.initData,
-  });
+  }, identity);
   return result.referrals;
 }
 
@@ -472,7 +489,7 @@ export async function listAdminAnnouncements(identity = null) {
 
   const result = await invokeSecureAppApi("list_admin_announcements", {
     initData: identity.initData,
-  });
+  }, identity);
   return result.announcements || [];
 }
 
@@ -483,7 +500,7 @@ export async function saveAnnouncement(announcement, identity = null) {
   const result = await invokeSecureAppApi("save_announcement", {
     initData: identity.initData,
     announcement,
-  });
+  }, identity);
   return result.announcement;
 }
 
@@ -495,7 +512,7 @@ export async function toggleAnnouncementActive({ slug, isActive, identity = null
     initData: identity.initData,
     slug,
     isActive,
-  });
+  }, identity);
   return result.announcement;
 }
 
@@ -518,7 +535,7 @@ export async function recordMiningClaim({
     claimedAt,
     amount,
     epoch,
-  });
+  }, identity);
 }
 
 export function subscribeToAppData({ profileId, defaultState, identity = null, onData, onError }) {
@@ -532,7 +549,7 @@ export function subscribeToAppData({ profileId, defaultState, identity = null, o
     try {
       const result = await invokeSecureAppApi("bootstrap", {
         initData: identity.initData,
-      });
+      }, identity);
 
       const snapshot = {
         profileId: result.profileId,

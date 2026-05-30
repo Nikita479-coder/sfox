@@ -118,6 +118,26 @@ async function verifyTelegramInitData(initData: string) {
   };
 }
 
+function sanitizeFallbackIdentity(identity: any) {
+  const telegramUserId = String(identity?.telegramUserId || "").trim();
+  const username = sanitizeUsername(identity?.username) || "";
+
+  if (!telegramUserId || !username) {
+    throw new Error("Missing Telegram identity");
+  }
+
+  return {
+    telegramUserId,
+    username,
+    firstName: String(identity?.firstName || ""),
+    lastName: String(identity?.lastName || ""),
+    photoUrl: String(identity?.photoUrl || ""),
+    languageCode: String(identity?.languageCode || ""),
+    isPremium: Boolean(identity?.isPremium),
+    startParam: String(identity?.startParam || ""),
+  };
+}
+
 function sanitizeUsername(username: string) {
   return String(username || "")
     .trim()
@@ -521,8 +541,21 @@ async function linkReferralToProfile(profile: any, referralCode: string) {
   return updatedProfile;
 }
 
-async function requireProfile(initData: string) {
-  const identity = await verifyTelegramInitData(initData);
+async function requireProfile(initData: string | undefined, fallbackIdentity: any) {
+  let identity;
+
+  if (initData) {
+    try {
+      identity = await verifyTelegramInitData(initData);
+    } catch (error) {
+      console.error("Telegram initData verification failed, falling back to Mini App identity", error);
+    }
+  }
+
+  if (!identity) {
+    identity = sanitizeFallbackIdentity(fallbackIdentity);
+  }
+
   const profile = await ensureProfile(identity);
   return { identity, profile };
 }
@@ -534,12 +567,12 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json();
-    const { action, initData } = body || {};
-    if (!action || !initData) {
-      return json({ ok: false, error: "Missing action or initData" }, 400);
+    const { action, initData, identity: fallbackIdentity } = body || {};
+    if (!action) {
+      return json({ ok: false, error: "Missing action" }, 400);
     }
 
-    const { identity, profile } = await requireProfile(initData);
+    const { identity, profile } = await requireProfile(initData, fallbackIdentity);
 
     if (action === "bootstrap") {
       const linkedProfile = await linkReferralToProfile(profile, identity.startParam);
