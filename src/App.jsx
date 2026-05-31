@@ -1406,13 +1406,6 @@ function App() {
                             </div>
                           </div>
                           <div className="mining-ring-inner">
-                            <div className="mining-ring-center-mark" aria-hidden="true">
-                              <div className="mining-ring-center-mark-shape">
-                                <span className="news-logo-top" />
-                                <span className="news-logo-mid" />
-                                <span className="news-logo-stem" />
-                              </div>
-                            </div>
                             <div className="ring-readout">
                               <span className="ring-label">This session</span>
                               <strong>{formatSessionEarned(mining.sessionEarned)}</strong>
