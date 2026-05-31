@@ -1334,6 +1334,14 @@ function App() {
                   <div className={`center-stage ${activeTab === "news" ? "center-stage-news" : ""}`}>
                     {activeTab === "news" ? (
                       <div className="news-center">
+                        <div className="news-hero-art news-hero-art-tyra" aria-hidden="true">
+                          <div className="news-logo-ring" />
+                          <div className="news-logo-mark">
+                            <span className="news-logo-top" />
+                            <span className="news-logo-mid" />
+                            <span className="news-logo-stem" />
+                          </div>
+                        </div>
                         <h1>Satyra Feed</h1>
                         <p className="welcome-line">COMMUNITY UPDATES, ANNOUNCEMENTS, AND PRODUCT NEWS</p>
 
