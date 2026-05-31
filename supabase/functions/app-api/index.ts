@@ -17,7 +17,9 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "tyranetworkbot";
-const adminAllowlist = String(Deno.env.get("Satyra_ADMIN_USERNAMES") ?? "")
+const adminAllowlist = String(
+  Deno.env.get("SATYRA_ADMIN_USERNAMES") ?? Deno.env.get("Satyra_ADMIN_USERNAMES") ?? ""
+)
   .split(",")
   .map((value) => value.trim().toLowerCase())
   .filter(Boolean);
@@ -322,6 +324,121 @@ function mapLeaderboardRow(row: any) {
   };
 }
 
+function mapAdminMinerRow(row: any) {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: getProfileDisplayName(row),
+    telegramUsername: row.telegram_username || row.username,
+    rank: row.current_rank || "miner",
+    totalMined: Number(row.total_mined || 0),
+    currentRate: Number(row.current_rate || 0),
+    activeReferrals: Number(row.active_referrals || 0),
+    totalReferrals: Number(row.total_referrals || 0),
+    miningStartedAt: row.mining_started_at || null,
+    joinedAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    inviteCode: row.invite_code || "",
+    isMining: isReferralProfileActivelyMining(row),
+  };
+}
+
+function mapAdminReferralWatchRow(row: any) {
+  const referrerName = row.referrer_profile
+    ? getProfileDisplayName(row.referrer_profile)
+    : row.referrer_profile?.username || row.referrer_username || "";
+  const referredName = row.referred_profile
+    ? getProfileDisplayName(row.referred_profile)
+    : row.referred_username;
+  const active = row.referred_profile
+    ? isReferralProfileActivelyMining(row.referred_profile)
+    : Boolean(row.is_active);
+
+  return {
+    id: row.id,
+    referrerName,
+    referrerUsername: row.referrer_profile?.username || "",
+    referredName,
+    referredUsername: row.referred_username,
+    referredRank: row.referred_rank || "miner",
+    active,
+    lastRemindedAt: row.last_reminded_at || null,
+    linked: Boolean(row.referred_profile_id),
+  };
+}
+
+async function getAdminDashboardSnapshot() {
+  const [
+    { data: profiles, error: profilesError },
+    { data: referralRows, error: referralsError },
+    { data: announcementRows, error: announcementsError },
+    { count: claimsCount, error: claimsError },
+    protocol,
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "id, username, telegram_username, telegram_first_name, current_rank, total_mined, current_rate, active_referrals, total_referrals, mining_started_at, created_at, updated_at, invite_code",
+      )
+      .order("updated_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("referrals")
+      .select(
+        "id, referred_profile_id, referred_username, referred_rank, is_active, last_reminded_at, referrer_profile:profiles!referrals_referrer_profile_id_fkey(username, telegram_first_name), referred_profile:profiles!referrals_referred_profile_id_fkey(username, telegram_first_name, mining_started_at)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("announcements")
+      .select("*")
+      .order("published_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("mining_claims")
+      .select("id", { count: "exact", head: true }),
+    getProtocolSnapshot(),
+  ]);
+
+  if (profilesError) throw profilesError;
+  if (referralsError) throw referralsError;
+  if (announcementsError) throw announcementsError;
+  if (claimsError) throw claimsError;
+
+  const mappedMiners = (profiles || []).map(mapAdminMinerRow);
+  const activeMiners = mappedMiners.filter((entry) => entry.isMining).length;
+  const totalReferrals = (referralRows || []).length;
+  const activeReferralLinks = (referralRows || []).filter((entry) =>
+    entry.referred_profile
+      ? isReferralProfileActivelyMining(entry.referred_profile)
+      : Boolean(entry.is_active)
+  ).length;
+
+  const topMiners = [...mappedMiners]
+    .sort((left, right) => right.totalMined - left.totalMined)
+    .slice(0, 10)
+    .map((entry, index) => ({
+      ...entry,
+      position: index + 1,
+    }));
+
+  return {
+    stats: {
+      totalMiners: mappedMiners.length,
+      activeMiners,
+      totalReferrals,
+      activeReferralLinks,
+      activeAnnouncements: (announcementRows || []).filter((entry) => entry.is_active).length,
+      totalClaims: Number(claimsCount || 0),
+    },
+    topMiners,
+    miners: mappedMiners,
+    referrals: (referralRows || []).map(mapAdminReferralWatchRow),
+    announcements: (announcementRows || []).map(mapAnnouncementRow),
+    protocol,
+  };
+}
+
 function getProfileDisplayName(row: any) {
   const firstName = String(row?.telegram_first_name || "").trim();
   return firstName || row?.username || "";
@@ -432,10 +549,12 @@ async function fetchSnapshot(profile: any) {
         .maybeSingle()
     : Promise.resolve({ data: null, error: null });
 
+  const isAdminProfile = adminAllowlist.includes(String(profile.username || "").toLowerCase());
+
   const [
     { data: announcementRows, error: announcementError },
     { data: referralRows, error: referralsError },
-    { data: leaderboardRows, error: leaderboardError },
+    leaderboardResult,
     { data: inviterRow, error: inviterError },
   ] = await Promise.all([
     supabase
@@ -451,16 +570,18 @@ async function fetchSnapshot(profile: any) {
       )
       .eq("referrer_profile_id", profile.id)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("leaderboard")
-      .select("username, telegram_first_name, display_name, current_rank, total_mined, active_referrals, total_referrals, current_rate")
-      .limit(25),
+    isAdminProfile
+      ? supabase
+          .from("leaderboard")
+          .select("username, telegram_first_name, display_name, current_rank, total_mined, active_referrals, total_referrals, current_rate")
+          .limit(25)
+      : Promise.resolve({ data: [], error: null }),
     inviterPromise,
   ]);
 
   if (announcementError) throw announcementError;
   if (referralsError) throw referralsError;
-  if (leaderboardError) throw leaderboardError;
+  if (leaderboardResult.error) throw leaderboardResult.error;
   if (inviterError) throw inviterError;
 
   const mappedReferrals = (referralRows || []).map(mapReferralRow);
@@ -512,9 +633,9 @@ async function fetchSnapshot(profile: any) {
     state: mapProfileState(snapshotProfile, referralSummary, inviterRow),
     announcement: announcementRows?.[0] ? mapAnnouncementRow(announcementRows[0]) : null,
     referrals: mappedReferrals,
-    leaderboard: (leaderboardRows || []).map(mapLeaderboardRow),
+    leaderboard: (leaderboardResult.data || []).map(mapLeaderboardRow),
     protocol,
-    isAdmin: adminAllowlist.includes(String(snapshotProfile.username || "").toLowerCase()),
+    isAdmin: isAdminProfile,
   };
 }
 
@@ -690,6 +811,15 @@ Deno.serve(async (request) => {
 
       if (error) throw error;
       return json({ ok: true, announcements: (data || []).map(mapAnnouncementRow) });
+    }
+
+    if (action === "get_admin_dashboard") {
+      if (!adminAllowlist.includes(String(identity.username).toLowerCase())) {
+        return json({ ok: false, error: "Not authorized" }, 403);
+      }
+
+      const dashboard = await getAdminDashboardSnapshot();
+      return json({ ok: true, dashboard });
     }
 
     if (action === "persist_profile") {

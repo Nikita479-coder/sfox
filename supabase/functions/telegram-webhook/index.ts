@@ -11,7 +11,7 @@ type TelegramUpdate = {
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const miniAppUrl = Deno.env.get("TELEGRAM_MINI_APP_URL") ?? "https://Satyra-8qc.pages.dev/";
+const miniAppUrl = Deno.env.get("TELEGRAM_MINI_APP_URL") ?? "https://sfox-8qc.pages.dev/";
 const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "tyranetworkbot";
 
 const supabase =

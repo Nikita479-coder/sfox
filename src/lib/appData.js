@@ -330,7 +330,6 @@ async function fetchAppSnapshot(profile, defaultState) {
   const [
     { data: announcementRows, error: announcementError },
     { data: referralRows, error: referralsError },
-    { data: leaderboardRows, error: leaderboardError },
     { data: inviterRow, error: inviterError },
   ] = await Promise.all([
     supabase
@@ -346,16 +345,11 @@ async function fetchAppSnapshot(profile, defaultState) {
       )
       .eq("referrer_profile_id", profile.id)
       .order("created_at", { ascending: true }),
-    supabase
-      .from("leaderboard")
-      .select("username, telegram_first_name, display_name, current_rank, total_mined, active_referrals, total_referrals, current_rate")
-      .limit(25),
     inviterPromise,
   ]);
 
   if (announcementError) throw announcementError;
   if (referralsError) throw referralsError;
-  if (leaderboardError) throw leaderboardError;
   if (inviterError) throw inviterError;
 
   const mappedReferrals = (referralRows || []).map(mapReferralRow);
@@ -366,7 +360,7 @@ async function fetchAppSnapshot(profile, defaultState) {
     state: mapProfileState(profile, referralSummary, defaultState, inviterRow),
     announcement: announcementRows?.[0] ? mapAnnouncementRow(announcementRows[0]) : null,
     referrals: mappedReferrals,
-    leaderboard: (leaderboardRows || []).map(mapLeaderboardRow),
+    leaderboard: [],
   };
 }
 
@@ -387,8 +381,7 @@ export async function loadAppBootstrap(defaultState, identity = null) {
       state: null,
       announcement: null,
       referrals: [],
-      leaderboard: [],
-    };
+      };
   }
 
   requireSecureTelegramIdentity(identity, "load your live Satyra profile");
@@ -403,7 +396,6 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     state: result.state,
     announcement: result.announcement,
     referrals: result.referrals,
-    leaderboard: result.leaderboard,
     protocol: result.protocol || null,
     isAdmin: Boolean(result.isAdmin),
   };
@@ -507,6 +499,16 @@ export async function listAdminAnnouncements(identity = null) {
   return result.announcements || [];
 }
 
+export async function getAdminDashboard(identity = null) {
+  if (!hasSupabaseConfig || !supabase) return null;
+
+  requireSecureTelegramIdentity(identity, "load admin dashboard data");
+
+  return invokeSecureAppApi("get_admin_dashboard", {
+    initData: identity.initData,
+  }, identity);
+}
+
 export async function saveAnnouncement(announcement, identity = null) {
   if (!hasSupabaseConfig || !supabase) return null;
   requireSecureTelegramIdentity(identity, "save this announcement");
@@ -570,7 +572,6 @@ export function subscribeToAppData({ profileId, defaultState, identity = null, o
         state: result.state,
         announcement: result.announcement,
         referrals: result.referrals,
-        leaderboard: result.leaderboard,
         protocol: result.protocol || null,
         isAdmin: Boolean(result.isAdmin),
       };

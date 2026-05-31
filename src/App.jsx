@@ -8,6 +8,7 @@ import {
   applyReferralCode,
   buildReferralSummary,
   fallbackReferralMembers,
+  getAdminDashboard,
   listAdminAnnouncements,
   loadAppBootstrap,
   listAnnouncements,
@@ -380,7 +381,6 @@ function getInitialTab() {
     "epoch",
     "referrals",
     "ranks",
-    "leaderboard",
     "profile",
     "admin",
   ]);
@@ -451,8 +451,8 @@ function App() {
   const [rankSort, setRankSort] = useState("desc");
   const [announcement, setAnnouncement] = useState(null);
   const [databaseReferrals, setDatabaseReferrals] = useState([]);
-  const [databaseLeaderboard, setDatabaseLeaderboard] = useState([]);
   const [protocolSnapshot, setProtocolSnapshot] = useState(null);
+  const [adminDashboard, setAdminDashboard] = useState(null);
   const [usingSupabase, setUsingSupabase] = useState(false);
   const [bootstrapReady, setBootstrapReady] = useState(false);
   const [profileId, setProfileId] = useState(null);
@@ -521,6 +521,31 @@ function App() {
   }, [state.canManageAdmin, usingSupabase, announcement, telegramIdentity]);
 
   useEffect(() => {
+    if (!state.canManageAdmin || !usingSupabase) return undefined;
+
+    let cancelled = false;
+
+    const loadDashboard = async () => {
+      try {
+        const result = await getAdminDashboard(telegramIdentity);
+        if (!cancelled) {
+          setAdminDashboard(result?.dashboard || null);
+        }
+      } catch (error) {
+        console.error("Failed to load admin dashboard", error);
+      }
+    };
+
+    loadDashboard();
+    const intervalId = window.setInterval(loadDashboard, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [state.canManageAdmin, usingSupabase, telegramIdentity]);
+
+  useEffect(() => {
     if (!telegramIdentity) return;
 
     setState((current) => ({
@@ -575,7 +600,6 @@ function App() {
 
         setAnnouncement(result.announcement || null);
         setDatabaseReferrals(result.referrals || []);
-        setDatabaseLeaderboard(result.leaderboard || []);
         setProtocolSnapshot(result.protocol || null);
         setUsingSupabase(result.usingSupabase);
         setProfileId(result.profileId || null);
@@ -605,7 +629,6 @@ function App() {
       onData: (result) => {
         setAnnouncement(result.announcement || null);
         setDatabaseReferrals(result.referrals || []);
-        setDatabaseLeaderboard(result.leaderboard || []);
         setProtocolSnapshot(result.protocol || null);
         if (result.state) {
           setState((current) => ({
@@ -1190,6 +1213,10 @@ function App() {
   const nextRankRequirement = nextRankTarget || state.activeReferrals;
   const nextRankProgress =
     nextRankTarget > 0 ? Math.min(100, Math.round((state.activeReferrals / nextRankTarget) * 100)) : 100;
+  const adminTopMiners = adminDashboard?.topMiners || [];
+  const adminMiners = adminDashboard?.miners || [];
+  const adminReferrals = adminDashboard?.referrals || [];
+  const adminStats = adminDashboard?.stats || null;
   return (
     <div className="page">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -2043,11 +2070,137 @@ function App() {
             <section className="app-page">
               <div className="app-page-header">
                 <span className="app-page-eyebrow">Admin tools</span>
-                <h2>Announcement Control</h2>
-                <p>Publish and update the news feed without editing Supabase rows by hand.</p>
+                <h2>Network Control</h2>
+                <p>Manage the news feed, watch miners and referrals, and keep an eye on live protocol activity.</p>
               </div>
 
               <section className="dashboard-panels page-panels">
+                <article className="dashboard-card wide primary">
+                  <span>Network overview</span>
+                  <strong>Live admin snapshot</strong>
+                  <p>Private visibility into miners, referral activity, claims, and protocol issuance.</p>
+                  <div className="admin-overview-grid">
+                    <div className="admin-overview-tile">
+                      <span>Total miners</span>
+                      <strong>{adminStats?.totalMiners ?? 0}</strong>
+                    </div>
+                    <div className="admin-overview-tile">
+                      <span>Mining now</span>
+                      <strong>{adminStats?.activeMiners ?? 0}</strong>
+                    </div>
+                    <div className="admin-overview-tile">
+                      <span>Total referrals</span>
+                      <strong>{adminStats?.totalReferrals ?? 0}</strong>
+                    </div>
+                    <div className="admin-overview-tile">
+                      <span>Active referral links</span>
+                      <strong>{adminStats?.activeReferralLinks ?? 0}</strong>
+                    </div>
+                    <div className="admin-overview-tile">
+                      <span>Active announcements</span>
+                      <strong>{adminStats?.activeAnnouncements ?? 0}</strong>
+                    </div>
+                    <div className="admin-overview-tile">
+                      <span>Total claims</span>
+                      <strong>{adminStats?.totalClaims ?? 0}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Top miners</span>
+                  <strong>Private ranking</strong>
+                  <p>This ranking is visible only in admin tools.</p>
+                  <div className="admin-table-list">
+                    {adminTopMiners.length > 0 ? (
+                      adminTopMiners.map((entry) => (
+                        <div className="admin-table-row" key={`top-${entry.id}`}>
+                          <div className="admin-table-main">
+                            <strong>#{entry.position} {entry.displayName}</strong>
+                            <span>@{entry.telegramUsername || entry.username}</span>
+                          </div>
+                          <div className="admin-table-meta">
+                            <span>{rankMap[entry.rank]?.label || "Miner"}</span>
+                            <strong>{formatTotal(entry.totalMined)}</strong>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="admin-table-row empty-state-card">
+                        <div className="admin-table-main">
+                          <strong>No miner data yet</strong>
+                          <span>Profiles will appear here once the network grows.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Miner watch</span>
+                  <strong>Profiles and mining state</strong>
+                  <p>See who is mining, their rank, their balance, and their referral counts.</p>
+                  <div className="admin-table-list">
+                    {adminMiners.length > 0 ? (
+                      adminMiners.map((entry) => (
+                        <div className="admin-table-row" key={`miner-${entry.id}`}>
+                          <div className="admin-table-main">
+                            <strong>{entry.displayName}</strong>
+                            <span>@{entry.telegramUsername || entry.username}</span>
+                          </div>
+                          <div className="admin-table-meta">
+                            <span>{rankMap[entry.rank]?.label || "Miner"}</span>
+                            <span>{entry.activeReferrals}/{entry.totalReferrals} referrals</span>
+                            <span>{entry.isMining ? "Mining now" : "Idle"}</span>
+                            <strong>{formatRate(entry.currentRate)}</strong>
+                            <strong>{formatTotal(entry.totalMined)}</strong>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="admin-table-row empty-state-card">
+                        <div className="admin-table-main">
+                          <strong>No profiles yet</strong>
+                          <span>Admin miner watch will populate from Supabase profiles.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </article>
+
+                <article className="dashboard-card wide">
+                  <span>Referral watch</span>
+                  <strong>Who invited whom</strong>
+                  <p>Track linked referrals, activity status, and reminder health.</p>
+                  <div className="admin-table-list">
+                    {adminReferrals.length > 0 ? (
+                      adminReferrals.map((entry) => (
+                        <div className="admin-table-row" key={`ref-${entry.id}`}>
+                          <div className="admin-table-main">
+                            <strong>{entry.referredName}</strong>
+                            <span>
+                              {entry.referrerName ? `${entry.referrerName} invited them` : "No inviter found"}
+                            </span>
+                          </div>
+                          <div className="admin-table-meta">
+                            <span>{rankMap[entry.referredRank]?.label || "Miner"}</span>
+                            <span>{entry.active ? "Active" : "Inactive"}</span>
+                            <span>{entry.linked ? "Linked account" : "Unlinked entry"}</span>
+                            <span>{entry.lastRemindedAt ? `Reminded ${formatFullDateTime(entry.lastRemindedAt)}` : "No reminder sent"}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="admin-table-row empty-state-card">
+                        <div className="admin-table-main">
+                          <strong>No referrals yet</strong>
+                          <span>Referral connections will appear here once people join through invite links.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </article>
+
                 <article className="dashboard-card wide primary">
                   <span>Publish announcement</span>
                   <strong>News feed editor</strong>
