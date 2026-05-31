@@ -1398,6 +1398,13 @@ function App() {
                       <>
                         <RankHeroBadge rankKey={permanentRankKey} label={eligibleRank.label} />
                         <div className="mining-ring">
+                          <div className="mining-ring-brand" aria-hidden="true">
+                            <div className="mining-ring-brand-mark">
+                              <span className="news-logo-top" />
+                              <span className="news-logo-mid" />
+                              <span className="news-logo-stem" />
+                            </div>
+                          </div>
                           <div className="mining-ring-inner">
                             <div className="ring-readout">
                               <span className="ring-label">This session</span>

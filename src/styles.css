@@ -770,15 +770,63 @@ textarea {
 }
 
 .mining-ring {
+  position: relative;
   width: 210px;
   height: 210px;
   margin: 0 auto;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(73, 79, 223, 0.24), rgba(73, 79, 223, 0.04));
-  border: 8px solid var(--accent-cobalt-bright);
-  box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(circle at center, rgba(15, 21, 32, 0.82) 0 47%, transparent 48%),
+    linear-gradient(135deg, rgba(31, 230, 239, 0.22), rgba(44, 103, 255, 0.12) 56%, rgba(240, 69, 255, 0.16));
+  border: 6px solid transparent;
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.04),
+    0 0 26px rgba(44, 103, 255, 0.14);
+  isolation: isolate;
+}
+
+.mining-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 6px;
+  background: linear-gradient(135deg, #21e6ef 8%, #2c67ff 56%, #f045ff 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.95;
+}
+
+.mining-ring-brand {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mining-ring-brand-mark {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  opacity: 0.22;
+  filter: saturate(1.08);
+}
+
+.mining-ring-brand-mark span {
+  position: absolute;
+  display: block;
+  background: linear-gradient(135deg, #22edf5 8%, #2c9cff 52%, #f04fff 100%);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 18px rgba(36, 199, 255, 0.12);
 }
 
 .mining-ring-inner {
@@ -789,6 +837,10 @@ textarea {
   place-items: center;
   border-radius: 50%;
   background: rgba(9, 12, 18, 0.9);
+  z-index: 1;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 10px 20px rgba(0, 0, 0, 0.18);
 }
 
 .ring-readout {
