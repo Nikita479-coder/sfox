@@ -976,6 +976,11 @@ textarea {
   gap: 20px;
 }
 
+.referral-team-page .app-page-header p,
+.ranks-page .app-page-header p {
+  max-width: 30ch;
+}
+
 .team-hero-card,
 .team-stat-card,
 .team-progress-card,
@@ -1366,6 +1371,106 @@ textarea {
 .team-member-row {
   padding: 14px;
   border-radius: 20px;
+}
+
+.referral-team-page .team-hero-card,
+.ranks-page .ranks-hero-card {
+  grid-template-columns: 1fr;
+  gap: 18px;
+  padding: 20px;
+}
+
+.referral-team-page .team-hero-copy h3,
+.ranks-page .ranks-hero-copy h3 {
+  max-width: none;
+  font-size: clamp(24px, 7vw, 34px);
+  line-height: 1.02;
+}
+
+.referral-team-page .team-hero-copy p,
+.ranks-page .ranks-hero-copy p {
+  max-width: none;
+  font-size: 15px;
+  line-height: 1.58;
+}
+
+.referral-team-page .team-hero-side,
+.ranks-page .ranks-hero-side {
+  gap: 12px;
+}
+
+.referral-team-page .team-invite-card strong {
+  font-size: clamp(18px, 6vw, 28px);
+  line-height: 1.04;
+}
+
+.referral-team-page .team-copy-button {
+  min-height: 46px;
+}
+
+.referral-team-page .team-stat-grid,
+.ranks-page .ranks-stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.referral-team-page .team-insight-grid,
+.referral-team-page .team-action-grid,
+.ranks-page .ranks-insight-grid {
+  grid-template-columns: 1fr;
+}
+
+.referral-team-page .team-progress-card,
+.referral-team-page .team-rules-card,
+.referral-team-page .team-action-card,
+.referral-team-page .team-add-card,
+.referral-team-page .team-directory,
+.ranks-page .ranks-progress-card,
+.ranks-page .ranks-logic-card,
+.ranks-page .ranks-ladder-card {
+  padding: 18px;
+  border-radius: 24px;
+}
+
+.referral-team-page .team-directory-head,
+.referral-team-page .team-directory-actions,
+.ranks-page .ranks-progress-head,
+.ranks-page .ranks-ladder-head,
+.ranks-page .ranks-ladder-row,
+.ranks-page .ranks-progress-breakdown {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.referral-team-page .team-directory-actions {
+  align-items: stretch;
+  justify-items: stretch;
+}
+
+.referral-team-page .referral-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.referral-team-page .team-remind-all,
+.referral-team-page .team-bulk-button {
+  width: 100%;
+}
+
+.ranks-page .ranks-current-card {
+  justify-items: start;
+  text-align: left;
+}
+
+.ranks-page .ranks-ladder-row {
+  padding: 16px;
+}
+
+.ranks-page .ranks-ladder-metric strong,
+.ranks-page .ranks-progress-breakdown strong,
+.referral-team-page .team-stat-card strong {
+  font-size: 20px;
 }
 
 .ranks-dashboard {
@@ -2734,5 +2839,25 @@ textarea {
 
   .team-remind-all {
     width: 100%;
+  }
+
+  .referral-team-page .team-stat-grid,
+  .ranks-page .ranks-stat-grid,
+  .referral-team-page .referral-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .referral-team-page .team-hero-card,
+  .ranks-page .ranks-hero-card {
+    padding: 16px;
+  }
+
+  .referral-team-page .team-hero-copy h3,
+  .ranks-page .ranks-hero-copy h3 {
+    font-size: 22px;
+  }
+
+  .referral-team-page .team-invite-card strong {
+    font-size: 18px;
   }
 }
