@@ -70,7 +70,7 @@ if (!miniAppUrl) {
 await callTelegram("setChatMenuButton", {
   menu_button: {
     type: "web_app",
-    text: "SFOX",
+    text: "Satyra",
     web_app: {
       url: miniAppUrl,
     },
@@ -79,8 +79,8 @@ await callTelegram("setChatMenuButton", {
 
 await callTelegram("setMyCommands", {
   commands: [
-    { command: "start", description: "Open SFOX and continue onboarding" },
-    { command: "app", description: "Launch the SFOX Mini App" },
+    { command: "start", description: "Open Satyra and continue onboarding" },
+    { command: "app", description: "Launch the Satyra Mini App" },
     { command: "invite", description: "Open your referral team and invite flow" },
     { command: "leaderboard", description: "Open the global leaderboard" },
     { command: "protocol", description: "Open protocol supply and epoch state" },
@@ -88,12 +88,12 @@ await callTelegram("setMyCommands", {
 });
 
 await callTelegram("setMyShortDescription", {
-  short_description: "Mine SFOX, invite your team, and climb the leaderboard.",
+  short_description: "Mine TYRA, invite your team, and climb the leaderboard.",
 });
 
 await callTelegram("setMyDescription", {
   description:
-    "SFOX is a Telegram Mini App for mining, referrals, rank growth, leaderboard tracking, and future mainnet migration.",
+    "Satyra is a Telegram Mini App for mining, referrals, rank growth, leaderboard tracking, and future mainnet migration.",
 });
 
 if (webhookUrl) {
@@ -113,7 +113,7 @@ console.log(
         first_name: bot.first_name,
       },
       menu_button: {
-        text: "SFOX",
+        text: "Satyra",
         url: miniAppUrl,
       },
       webhook_url: webhookUrl || null,

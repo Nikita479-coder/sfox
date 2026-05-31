@@ -34,7 +34,7 @@ create table if not exists public.referrals (
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
-  eyebrow text not null default '@SFOXCoreTeam',
+  eyebrow text not null default '@SatyraCoreTeam',
   title text not null,
   body text not null,
   primary_cta_label text not null default 'Announcement',
@@ -123,7 +123,7 @@ insert into public.announcements (
 )
 values (
   'possible-rate-live',
-  '@SFOXCoreTeam',
+  '@SatyraCoreTeam',
   'Your possible rate now updates from active miners only.',
   'Open the possible rate button on the right to see the full breakdown: base rate x referral boosters x rank reward booster. Referral boosters come only from active overflow miners, while rank rewards are fixed by your current rank.',
   'Announcement',

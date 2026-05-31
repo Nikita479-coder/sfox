@@ -7,7 +7,6 @@ import titanLogo from "../titan.png";
 import {
   applyReferralCode,
   buildReferralSummary,
-  createReferralMember,
   fallbackLeaderboardEntries,
   fallbackReferralMembers,
   listAdminAnnouncements,
@@ -25,7 +24,7 @@ import { hasSupabaseConfig } from "./lib/supabase";
 import { EARLY_ADOPTER_REQUIREMENT_LABEL, NETWORK_START_AT, isEarlyAdopterDate } from "./lib/earlyAdopter";
 import { buildTelegramReferralLink, getTelegramIdentity } from "./lib/telegram";
 
-const STORAGE_KEY = "sfox-react-platform-state";
+const STORAGE_KEY = "satyra-react-platform-state";
 const SESSION_HOURS = 24;
 const HALVING_DAYS = 14;
 const rankOrder = { miner: 0, pioneer: 1, lord: 2, baron: 3, president: 4, titan: 5 };
@@ -110,7 +109,7 @@ const defaultState = {
   miningStartedAt: null,
   sessionClaimed: true,
   lastClaimedAt: null,
-  inviteCode: "SFOX-PENDING-0000",
+  inviteCode: "TYRA-PENDING-0000",
   username: "guest",
   telegramUserId: null,
   telegramUsername: null,
@@ -161,11 +160,11 @@ function saveState(nextState) {
 }
 
 function formatRate(value) {
-  return `${value.toFixed(3)} SFOX/h`;
+  return `${value.toFixed(3)} TYRA/h`;
 }
 
 function formatTotal(value) {
-  return `${value.toFixed(5)} SFOX`;
+  return `${value.toFixed(5)} TYRA`;
 }
 
 function formatCountdown(ms) {
@@ -183,7 +182,7 @@ function formatSessionEarned(value) {
 function formatTokenMetric(value) {
   return `${Number(value || 0).toLocaleString("en-US", {
     maximumFractionDigits: 5,
-  })} SFOX`;
+  })} TYRA`;
 }
 
 function formatPhoneHeaderDate(value) {
@@ -458,8 +457,6 @@ function App() {
   const [usingSupabase, setUsingSupabase] = useState(false);
   const [bootstrapReady, setBootstrapReady] = useState(false);
   const [profileId, setProfileId] = useState(null);
-  const [newReferralName, setNewReferralName] = useState("");
-  const [newReferralRank, setNewReferralRank] = useState("pioneer");
   const [teamMessage, setTeamMessage] = useState("");
   const [teamBusy, setTeamBusy] = useState(false);
   const [manualReferralCode, setManualReferralCode] = useState("");
@@ -468,7 +465,7 @@ function App() {
   const [adminMessage, setAdminMessage] = useState("");
   const [announcementForm, setAnnouncementForm] = useState({
     slug: "",
-    eyebrow: "@SFOXCoreTeam",
+    eyebrow: "@SatyraCoreTeam",
     title: "",
     body: "",
     primaryCtaLabel: "Announcement",
@@ -548,7 +545,7 @@ function App() {
     }
 
     if (hasSupabaseConfig && hasTelegramWebApp && !telegramIdentity?.telegramUserId) {
-      console.error("SFOX could not read Telegram identity. Live data bootstrap was skipped.");
+      console.error("Satyra could not read Telegram identity. Live data bootstrap was skipped.");
       setBootstrapReady(true);
       return undefined;
     }
@@ -900,7 +897,7 @@ function App() {
   const handleLoadAnnouncementIntoEditor = (item) => {
     setAnnouncementForm({
       slug: item.slug || "",
-      eyebrow: item.eyebrow || "@SFOXCoreTeam",
+      eyebrow: item.eyebrow || "@SatyraCoreTeam",
       title: item.title || "",
       body: item.body || "",
       primaryCtaLabel: item.primaryCtaLabel || "Announcement",
@@ -965,66 +962,6 @@ function App() {
       setAdminMessage(error?.message || "Could not save announcement.");
     } finally {
       setAdminBusy(false);
-    }
-  };
-
-  const handleAddReferralMember = async () => {
-    const trimmedName = newReferralName.trim();
-    if (!trimmedName) {
-      setTeamMessage("Enter a referral username first.");
-      return;
-    }
-
-    if (referrals.some((member) => member.name.toLowerCase() === trimmedName.toLowerCase())) {
-      setTeamMessage("That referral username already exists in your team.");
-      return;
-    }
-
-    setTeamBusy(true);
-    setTeamMessage("");
-
-    try {
-      if (usingSupabase && profileId) {
-        const created = await createReferralMember({
-          profileId,
-          username: trimmedName,
-          rank: newReferralRank,
-          identity: telegramIdentity,
-        });
-
-        const nextMembers = [
-          ...referrals,
-          {
-            id: created.id,
-            name: created.username,
-            rank: created.rank,
-            active: created.is_active,
-            last_reminded_at: created.last_reminded_at,
-          },
-        ];
-        applyReferralMembers(nextMembers);
-      } else {
-        const nextMembers = [
-          ...referrals,
-          {
-            id: `${trimmedName}-${Date.now()}`,
-            name: trimmedName,
-            rank: newReferralRank,
-            active: false,
-            last_reminded_at: null,
-          },
-        ];
-        applyReferralMembers(nextMembers);
-      }
-
-      setNewReferralName("");
-      setNewReferralRank("pioneer");
-      setTeamMessage("Referral member added.");
-    } catch (error) {
-      console.error("Failed to add referral member", error);
-      setTeamMessage("Could not add that referral member.");
-    } finally {
-      setTeamBusy(false);
     }
   };
 
@@ -1297,7 +1234,7 @@ function App() {
           <div className="brand">
             <div className="brand-mark" />
             <div>
-              <strong>SFOX</strong>
+              <strong>Satyra</strong>
               <small>Mobile mining app</small>
             </div>
           </div>
@@ -1407,7 +1344,7 @@ function App() {
                   <div className={`center-stage ${activeTab === "news" ? "center-stage-news" : ""}`}>
                     {activeTab === "news" ? (
                       <div className="news-center">
-                        <h1>SFOX Feed</h1>
+                        <h1>Satyra Feed</h1>
                         <p className="welcome-line">COMMUNITY UPDATES, ANNOUNCEMENTS, AND PRODUCT NEWS</p>
 
                         {announcement ? (
@@ -1465,7 +1402,7 @@ function App() {
                         ) : (
                           <article className="news-post inline empty-state-card">
                             <div className="news-post-top">
-                              <span className="news-meta">@SFOXCoreTeam</span>
+                              <span className="news-meta">@SatyraCoreTeam</span>
                             </div>
                             <strong>No announcements yet</strong>
                             <p>Publish real news records in Supabase and they will appear here automatically.</p>
@@ -1480,12 +1417,12 @@ function App() {
                             <div className="ring-readout">
                               <span className="ring-label">This session</span>
                               <strong>{formatSessionEarned(mining.sessionEarned)}</strong>
-                              <small>SFOX mined</small>
+                              <small>TYRA mined</small>
                             </div>
                           </div>
                         </div>
 
-                        <h1>SFOX Mining</h1>
+                        <h1>TYRA Mining</h1>
                         <p className="welcome-line">ACTIVATE YOUR DAILY NETWORK SESSION</p>
                         <p className="countdown-line">{countdownText}</p>
 
@@ -1657,37 +1594,6 @@ function App() {
                 </section>
 
                 <section className="team-action-grid">
-                  <article className="team-add-card">
-                    <span className="reading-kicker">Add member</span>
-                    <h3>Add a new referral to your team</h3>
-                    <p>Create a referral member entry and start tracking their activity.</p>
-                    <div className="team-add-form">
-                      <input
-                        type="text"
-                        placeholder="Referral username"
-                        value={newReferralName}
-                        onChange={(event) => setNewReferralName(event.target.value)}
-                      />
-                      <select value={newReferralRank} onChange={(event) => setNewReferralRank(event.target.value)}>
-                        {Object.entries(rankMap)
-                          .filter(([key]) => key !== "miner")
-                          .map(([key, value]) => (
-                            <option key={key} value={key}>
-                              {value.label}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        className="primary-button team-add-button"
-                        type="button"
-                        onClick={handleAddReferralMember}
-                        disabled={teamBusy}
-                      >
-                        Add referral
-                      </button>
-                    </div>
-                  </article>
-
                   <article className="team-action-card">
                     <span className="reading-kicker">Team actions</span>
                     <h3>Bring inactive members back online</h3>
@@ -1712,11 +1618,11 @@ function App() {
                     <article className="team-add-card">
                       <span className="reading-kicker">Join with a code</span>
                       <h3>Use a referral code if you joined without one</h3>
-                      <p>Paste a valid SFOX invite code to attach this account to a referrer.</p>
+                      <p>Paste a valid TYRA invite code to attach this account to a referrer.</p>
                       <div className="team-add-form">
                         <input
                           type="text"
-                          placeholder="SFOX-XXXX-0000"
+                          placeholder="TYRA-XXXX-0000"
                           value={manualReferralCode}
                           onChange={(event) => setManualReferralCode(event.target.value)}
                         />
@@ -2108,7 +2014,7 @@ function App() {
                   <span>Supply model</span>
                   <strong>500,000,000 total supply</strong>
                   <p>
-                    400,000,000 SFOX are reserved for community mining and 100,000,000 SFOX for
+                    400,000,000 TYRA are reserved for community mining and 100,000,000 TYRA for
                     developer allocation. Mining claims now feed the protocol ledger through
                     on-chain style accounting records instead of only updating the visible profile balance.
                   </p>
@@ -2122,7 +2028,7 @@ function App() {
               <div className="app-page-header">
                 <span className="app-page-eyebrow">Mining rate</span>
                 <h2>Possible Rate Breakdown</h2>
-                <p>See exactly how your current SFOX mining rate is built.</p>
+                <p>See exactly how your current TYRA mining rate is built.</p>
               </div>
 
               <section className="dashboard-panels page-panels">

@@ -9,14 +9,14 @@ function sanitizeUsername(username) {
 function buildInviteCode(username, telegramUserId) {
   const baseName = sanitizeUsername(username).toUpperCase() || "MINER";
   const idTail = String(telegramUserId || "0000").slice(-4).toUpperCase();
-  return `SFOX-${baseName.slice(0, 8)}-${idTail}`;
+  return `TYRA-${baseName.slice(0, 8)}-${idTail}`;
 }
 
-const TELEGRAM_IDENTITY_CACHE_KEY = "sfox-telegram-identity-cache";
+const TELEGRAM_IDENTITY_CACHE_KEY = "satyra-telegram-identity-cache";
 
 export const TELEGRAM_BOT_USERNAME =
-  sanitizeUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "sfoxnetworkbot") ||
-  "sfoxnetworkbot";
+  sanitizeUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "Satyranetworkbot") ||
+  "Satyranetworkbot";
 
 export function buildTelegramReferralLink(inviteCode) {
   const code = String(inviteCode || "").trim();

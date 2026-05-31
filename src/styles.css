@@ -767,13 +767,13 @@ textarea {
   font-size: 10px;
 }
 
-.sfox-logo {
+.Satyra-logo {
   position: relative;
   width: 84px;
   height: 96px;
 }
 
-.sfox-logo-overlay {
+.Satyra-logo-overlay {
   position: absolute;
   right: 16px;
   bottom: 14px;
@@ -782,35 +782,35 @@ textarea {
   opacity: 0.9;
 }
 
-.sfox-bar {
+.Satyra-bar {
   position: absolute;
   display: block;
   background: linear-gradient(180deg, var(--accent-gold), var(--accent-gold-deep));
   border-radius: 999px;
 }
 
-.sfox-bar-top {
+.Satyra-bar-top {
   top: 8px;
   left: 14px;
   width: 56px;
   height: 12px;
 }
 
-.sfox-bar-left {
+.Satyra-bar-left {
   top: 24px;
   left: 16px;
   width: 14px;
   height: 24px;
 }
 
-.sfox-bar-right {
+.Satyra-bar-right {
   top: 24px;
   right: 16px;
   width: 14px;
   height: 24px;
 }
 
-.sfox-bar-stem {
+.Satyra-bar-stem {
   top: 42px;
   left: 35px;
   width: 14px;
@@ -2492,7 +2492,7 @@ textarea {
   }
 
   .topbar {
-    top: 26px;
+    top: 38px;
     left: 50%;
     transform: translateX(-50%);
     width: calc(100vw - 28px);

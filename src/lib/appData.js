@@ -11,7 +11,7 @@ function requireSecureTelegramIdentity(identity, actionLabel = "complete this ac
     return;
   }
 
-  throw new Error(`Open SFOX from Telegram to ${actionLabel}.`);
+  throw new Error(`Open Satyra from Telegram to ${actionLabel}.`);
 }
 
 function buildIdentityPayload(identity = null) {
@@ -391,7 +391,7 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     };
   }
 
-  requireSecureTelegramIdentity(identity, "load your live SFOX profile");
+  requireSecureTelegramIdentity(identity, "load your live Satyra profile");
 
   const result = await invokeSecureAppApi("bootstrap", {
     initData: identity.initData,

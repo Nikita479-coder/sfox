@@ -11,6 +11,6 @@ set
   mining_started_at = null,
   session_claimed = true,
   last_claimed_at = null,
-  invite_code = 'SFOX-PENDING-0000'
+  invite_code = 'Satyra-PENDING-0000'
 where telegram_user_id is null
   and username = 'pid16';

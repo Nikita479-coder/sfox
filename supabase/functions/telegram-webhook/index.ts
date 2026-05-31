@@ -11,8 +11,8 @@ type TelegramUpdate = {
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const miniAppUrl = Deno.env.get("TELEGRAM_MINI_APP_URL") ?? "https://sfox-8qc.pages.dev/";
-const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "sfoxnetworkbot";
+const miniAppUrl = Deno.env.get("TELEGRAM_MINI_APP_URL") ?? "https://Satyra-8qc.pages.dev/";
+const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "Satyranetworkbot";
 
 const supabase =
   supabaseUrl && serviceRoleKey
@@ -138,13 +138,13 @@ Deno.serve(async (request) => {
         const referralCode = referralPayload.replace(/^ref[-_:]?/i, "").trim().toUpperCase();
         const inviterName = await getInviterByCode(referralCode);
         const inviteLine = inviterName
-          ? `<b>${inviterName}</b> invited you to join SFOX.`
-          : "You were invited to join SFOX.";
+          ? `<b>${inviterName}</b> invited you to join Satyra.`
+          : "You were invited to join Satyra.";
 
         await sendMessage(
           chatId,
           `${inviteLine}\n\nTap below to open the Mini App and the referral will be attached automatically.`,
-          linkKeyboard("Open SFOX", buildDeepLink(`ref-${referralCode}`))
+          linkKeyboard("Open Satyra", buildDeepLink(`ref-${referralCode}`))
         );
 
         return json({ ok: true, handled: "start_referral" });
@@ -152,8 +152,8 @@ Deno.serve(async (request) => {
 
       await sendMessage(
         chatId,
-        "Welcome to SFOX.\n\nMine daily, grow your team, and track your rank inside the Mini App.",
-        webAppKeyboard("Open SFOX", buildAppUrl("news"))
+        "Welcome to Satyra.\n\nMine daily, grow your team, and track your rank inside the Mini App.",
+        webAppKeyboard("Open Satyra", buildAppUrl("news"))
       );
 
       return json({ ok: true, handled: "start" });
@@ -162,8 +162,8 @@ Deno.serve(async (request) => {
     if (command === "app") {
       await sendMessage(
         chatId,
-        "Open the SFOX Mini App.",
-        webAppKeyboard("Open SFOX", buildAppUrl("news"))
+        "Open the Satyra Mini App.",
+        webAppKeyboard("Open Satyra", buildAppUrl("news"))
       );
       return json({ ok: true, handled: "app" });
     }
@@ -171,7 +171,7 @@ Deno.serve(async (request) => {
     if (command === "invite") {
       const profile = sender ? await getProfileByTelegramId(sender.id) : null;
       const inviteText = profile?.invite_code
-        ? `Your SFOX invite code is <b>${profile.invite_code}</b>.\n\nUse the button below to open the Referral Team page, or share your referral link:\n${buildDeepLink(`ref-${profile.invite_code}`)}`
+        ? `Your TYRA invite code is <b>${profile.invite_code}</b>.\n\nUse the button below to open the Referral Team page, or share your referral link:\n${buildDeepLink(`ref-${profile.invite_code}`)}`
         : "Open the Referral Team page to get your invite code and referral link.";
 
       await sendMessage(
@@ -185,7 +185,7 @@ Deno.serve(async (request) => {
     if (command === "leaderboard") {
       await sendMessage(
         chatId,
-        "Open the global SFOX leaderboard.",
+        "Open the global Satyra leaderboard.",
         webAppKeyboard("Open Leaderboard", buildAppUrl("leaderboard"))
       );
       return json({ ok: true, handled: "leaderboard" });
@@ -194,7 +194,7 @@ Deno.serve(async (request) => {
     if (command === "protocol") {
       await sendMessage(
         chatId,
-        "Open the live SFOX protocol state and supply tracking.",
+        "Open the live Satyra protocol state and supply tracking.",
         webAppKeyboard("Open Protocol", buildAppUrl("protocol"))
       );
       return json({ ok: true, handled: "protocol" });
@@ -202,8 +202,8 @@ Deno.serve(async (request) => {
 
     await sendMessage(
       chatId,
-      "Use /app to open SFOX, /invite for your referral page, /leaderboard for standings, or /protocol for network state.",
-      webAppKeyboard("Open SFOX", buildAppUrl("news"))
+      "Use /app to open Satyra, /invite for your referral page, /leaderboard for standings, or /protocol for network state.",
+      webAppKeyboard("Open Satyra", buildAppUrl("news"))
     );
 
     return json({ ok: true, handled: "fallback" });

@@ -16,8 +16,8 @@ const rankOrder: Record<string, number> = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
-const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "sfoxnetworkbot";
-const adminAllowlist = String(Deno.env.get("SFOX_ADMIN_USERNAMES") ?? "")
+const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "Satyranetworkbot";
+const adminAllowlist = String(Deno.env.get("Satyra_ADMIN_USERNAMES") ?? "")
   .split(",")
   .map((value) => value.trim().toLowerCase())
   .filter(Boolean);
@@ -159,7 +159,7 @@ function sanitizeUsername(username: string) {
 function buildInviteCode(username: string, telegramUserId: string) {
   const baseName = sanitizeUsername(username).toUpperCase() || "MINER";
   const idTail = String(telegramUserId || "0000").slice(-4).toUpperCase();
-  return `SFOX-${baseName.slice(0, 8)}-${idTail}`;
+  return `TYRA-${baseName.slice(0, 8)}-${idTail}`;
 }
 
 function isEarlyAdopterDate(value?: string | number | Date | null) {
@@ -615,14 +615,14 @@ async function linkReferralToProfile(profile: any, referralCode: string) {
   if (updatedProfile.telegram_user_id) {
     await sendTelegramMessage(
       updatedProfile.telegram_user_id,
-      `${inviterName} invited you to SFOX. Your referral is now connected.`
+      `${inviterName} invited you to Satyra. Your referral is now connected.`
     ).catch(console.error);
   }
 
   if (inviter.telegram_user_id) {
     await sendTelegramMessage(
       inviter.telegram_user_id,
-      `${inviteeName} joined SFOX using your referral link.`
+      `${inviteeName} joined Satyra using your referral link.`
     ).catch(console.error);
   }
 
@@ -784,7 +784,7 @@ Deno.serve(async (request) => {
       if (data?.referred_profile?.telegram_user_id) {
         await sendTelegramMessage(
           data.referred_profile.telegram_user_id,
-          `${getProfileDisplayName(profile)} sent you a reminder to activate your SFOX mining session.`
+          `${getProfileDisplayName(profile)} sent you a reminder to activate your Satyra mining session.`
         ).catch(console.error);
         delivery = "telegram";
       }
@@ -810,7 +810,7 @@ Deno.serve(async (request) => {
         if (entry?.referred_profile?.telegram_user_id) {
           await sendTelegramMessage(
             entry.referred_profile.telegram_user_id,
-            `${getProfileDisplayName(profile)} sent you a reminder to activate your SFOX mining session.`
+            `${getProfileDisplayName(profile)} sent you a reminder to activate your Satyra mining session.`
           ).catch(console.error);
         }
       }
@@ -887,7 +887,7 @@ Deno.serve(async (request) => {
 
       const payload = {
         slug: slugBase || `announcement-${Date.now()}`,
-        eyebrow: body.announcement?.eyebrow || "@SFOXCoreTeam",
+        eyebrow: body.announcement?.eyebrow || "@SatyraCoreTeam",
         title: body.announcement?.title || "",
         body: body.announcement?.body || "",
         primary_cta_label: body.announcement?.primaryCtaLabel || "Announcement",
