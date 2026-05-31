@@ -810,10 +810,11 @@ textarea {
 
 .mining-ring-brand-mark {
   position: relative;
-  width: 112px;
-  height: 112px;
+  width: 82px;
+  height: 82px;
   opacity: 0.2;
   filter: saturate(1.08);
+  transform: translate(-1px, -2px);
 }
 
 .mining-ring-brand-mark span {
