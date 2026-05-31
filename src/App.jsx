@@ -493,19 +493,6 @@ function App() {
     return true;
   };
 
-  const openTelegramReferralLink = () => {
-    const deepLink = buildTelegramReferralLink(state.inviteCode);
-    const webApp = window.Telegram?.WebApp;
-
-    try {
-      webApp?.openTelegramLink?.(deepLink);
-    } catch {
-      // Ignore and fall back to browser open below.
-    }
-
-    window.open(deepLink, "_blank", "noopener,noreferrer");
-  };
-
   useEffect(() => {
     saveState(state);
   }, [state]);
@@ -1385,7 +1372,7 @@ function App() {
                             </article>
 
                             <div className="news-bottom-actions">
-                              <button className="news-bottom-button" type="button" onClick={handleCopyCode}>
+                              <button className="news-bottom-button" type="button" onClick={handleCopyReferralLink}>
                                 Invite
                               </button>
                               <button
@@ -1520,9 +1507,6 @@ function App() {
                       onClick={handleCopyReferralLink}
                     >
                       {copiedReferralLink ? "Link copied" : "Copy referral link"}
-                    </button>
-                    <button className="ghost-button team-copy-button" type="button" onClick={openTelegramReferralLink}>
-                      Open Telegram invite
                     </button>
                   </div>
                 </article>
