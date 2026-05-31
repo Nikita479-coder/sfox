@@ -827,6 +827,30 @@ textarea {
     0 0 18px rgba(36, 199, 255, 0.12);
 }
 
+.mining-ring-brand-mark .news-logo-top {
+  width: 56px;
+  height: 13px;
+  top: 14px;
+  left: 13px;
+  transform: skewX(-32deg);
+}
+
+.mining-ring-brand-mark .news-logo-mid {
+  width: 42px;
+  height: 12px;
+  top: 35px;
+  left: 19px;
+  transform: skewX(-32deg);
+}
+
+.mining-ring-brand-mark .news-logo-stem {
+  width: 14px;
+  height: 39px;
+  top: 47px;
+  left: 31px;
+  clip-path: polygon(0 0, 100% 0, 100% 68%, 28% 100%, 0 100%);
+}
+
 .mining-ring-inner {
   position: relative;
   width: 154px;
