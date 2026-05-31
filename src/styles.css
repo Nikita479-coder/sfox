@@ -777,6 +777,7 @@ textarea {
   display: grid;
   place-items: center;
   border-radius: 50%;
+  overflow: hidden;
   background:
     radial-gradient(circle at center, rgba(15, 21, 32, 0.82) 0 47%, transparent 48%),
     linear-gradient(135deg, rgba(31, 230, 239, 0.22), rgba(44, 103, 255, 0.12) 56%, rgba(240, 69, 255, 0.16));
@@ -813,9 +814,9 @@ textarea {
 
 .mining-ring-brand-mark {
   position: relative;
-  width: 132px;
-  height: 132px;
-  opacity: 0.22;
+  width: 112px;
+  height: 112px;
+  opacity: 0.2;
   filter: saturate(1.08);
 }
 
