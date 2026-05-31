@@ -82,18 +82,17 @@ await callTelegram("setMyCommands", {
     { command: "start", description: "Open Satyra and continue onboarding" },
     { command: "app", description: "Launch the Satyra Mini App" },
     { command: "invite", description: "Open your referral team and invite flow" },
-    { command: "leaderboard", description: "Open the global leaderboard" },
     { command: "protocol", description: "Open protocol supply and epoch state" },
   ],
 });
 
 await callTelegram("setMyShortDescription", {
-  short_description: "Mine TYRA, invite your team, and climb the leaderboard.",
+  short_description: "Mine TYRA, invite your team, and grow your rank.",
 });
 
 await callTelegram("setMyDescription", {
   description:
-    "Satyra is a Telegram Mini App for mining, referrals, rank growth, leaderboard tracking, and future mainnet migration.",
+    "Satyra is a Telegram Mini App for mining, referrals, rank growth, protocol tracking, and future mainnet migration.",
 });
 
 if (webhookUrl) {
@@ -117,7 +116,7 @@ console.log(
         url: miniAppUrl,
       },
       webhook_url: webhookUrl || null,
-      commands: ["start", "app", "invite", "leaderboard", "protocol"],
+      commands: ["start", "app", "invite", "protocol"],
     },
     null,
     2

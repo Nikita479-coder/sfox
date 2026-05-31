@@ -182,15 +182,6 @@ Deno.serve(async (request) => {
       return json({ ok: true, handled: "invite" });
     }
 
-    if (command === "leaderboard") {
-      await sendMessage(
-        chatId,
-        "Open the global Satyra leaderboard.",
-        webAppKeyboard("Open Leaderboard", buildAppUrl("leaderboard"))
-      );
-      return json({ ok: true, handled: "leaderboard" });
-    }
-
     if (command === "protocol") {
       await sendMessage(
         chatId,
@@ -202,7 +193,7 @@ Deno.serve(async (request) => {
 
     await sendMessage(
       chatId,
-      "Use /app to open Satyra, /invite for your referral page, /leaderboard for standings, or /protocol for network state.",
+      "Use /app to open Satyra, /invite for your referral page, or /protocol for network state.",
       webAppKeyboard("Open Satyra", buildAppUrl("news"))
     );
 

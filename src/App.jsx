@@ -7,7 +7,6 @@ import titanLogo from "../titan.png";
 import {
   applyReferralCode,
   buildReferralSummary,
-  fallbackLeaderboardEntries,
   fallbackReferralMembers,
   listAdminAnnouncements,
   loadAppBootstrap,
@@ -1152,7 +1151,6 @@ function App() {
     { key: "epoch", label: "Epoch" },
     { key: "referrals", label: "Referrals" },
     { key: "ranks", label: "Ranks" },
-    { key: "leaderboard", label: "Global Leaderboard" },
     { key: "migration", label: "Migration to Mainnet" },
     { key: "withdraw", label: "Withdraw" },
     { key: "profile", label: "Profile" },
@@ -1192,41 +1190,6 @@ function App() {
   const nextRankRequirement = nextRankTarget || state.activeReferrals;
   const nextRankProgress =
     nextRankTarget > 0 ? Math.min(100, Math.round((state.activeReferrals / nextRankTarget) * 100)) : 100;
-  const leaderboardEntries = useMemo(() => {
-    const source = usingSupabase ? databaseLeaderboard : fallbackLeaderboardEntries;
-    const currentUserEntry = {
-      username: state.username,
-      displayName: profileDisplayName,
-      rank: permanentRankKey,
-      mined: state.totalMined,
-      active: state.activeReferrals,
-      total: state.totalReferrals,
-      rate: mining.totalRate,
-      isCurrentUser: true,
-    };
-
-    const mergedEntries = source
-      .filter((entry) => entry.username !== state.username)
-      .map((entry) => ({
-        ...entry,
-        isCurrentUser: false,
-      }));
-
-    return [...mergedEntries, currentUserEntry]
-      .sort((a, b) => b.mined - a.mined)
-      .map((entry, index) => ({ ...entry, position: index + 1 }));
-  }, [
-    databaseLeaderboard,
-    permanentRankKey,
-    mining.totalRate,
-    state.activeReferrals,
-    state.totalMined,
-    state.totalReferrals,
-    state.username,
-    usingSupabase,
-  ]);
-  const leaderboardTop = leaderboardEntries.slice(0, 3);
-
   return (
     <div className="page">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -1873,101 +1836,6 @@ function App() {
                         </article>
                       );
                     })}
-                  </div>
-                </article>
-              </section>
-            </section>
-          )}
-
-          {activeTab === "leaderboard" && (
-            <section className="app-page leaderboard-page">
-              <div className="app-page-header">
-                <span className="app-page-eyebrow">Network standings</span>
-                <h2>Global Leaderboard</h2>
-                <p>
-                  See the strongest miners across the network, compare mined balance, and track who is
-                  leading in active team growth.
-                </p>
-              </div>
-
-              <section className="leaderboard-layout page-panels">
-                {leaderboardTop.length > 0 && (
-                  <div className="leaderboard-podium">
-                    {leaderboardTop.map((entry) => (
-                      <article
-                        key={entry.username}
-                        className={`leaderboard-podium-card rank-${entry.position} ${
-                          entry.isCurrentUser ? "current-user" : ""
-                        }`}
-                      >
-                        <span className="leaderboard-place">#{entry.position}</span>
-                        <RankBadge rankKey={entry.rank} label={rankMap[entry.rank].label} />
-                        <strong>{entry.displayName || entry.username}</strong>
-                        <small>{rankMap[entry.rank].label}</small>
-                        <div className="leaderboard-podium-metric">
-                          <span>Mined</span>
-                          <strong>{formatTotal(entry.mined)}</strong>
-                        </div>
-                        <div className="leaderboard-podium-meta">
-                          <span>{entry.active} active miners</span>
-                          <span>{formatRate(entry.rate)}</span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-
-                <article className="leaderboard-table-card">
-                  <div className="leaderboard-table-head">
-                    <div>
-                      <span className="reading-kicker">Full network table</span>
-                      <h3>Live ranking snapshot</h3>
-                    </div>
-                    <div className="leaderboard-summary-pill">
-                      <strong>{leaderboardEntries.length}</strong>
-                      <span>tracked miners</span>
-                    </div>
-                  </div>
-
-                  <div className="leaderboard-list">
-                    {leaderboardEntries.length > 0 ? (
-                      leaderboardEntries.map((entry) => (
-                        <article
-                          key={`${entry.username}-${entry.position}`}
-                          className={`leaderboard-row ${entry.isCurrentUser ? "current-user" : ""}`}
-                        >
-                          <div className="leaderboard-row-left">
-                            <span className="leaderboard-rank">#{entry.position}</span>
-                            <RankBadge rankKey={entry.rank} label={rankMap[entry.rank].label} />
-                          <div className="leaderboard-user">
-                            <strong>{entry.displayName || entry.username}</strong>
-                            <span>{rankMap[entry.rank].label} miner</span>
-                          </div>
-                          </div>
-                          <div className="leaderboard-row-metrics">
-                            <div>
-                              <span>Mined</span>
-                              <strong>{formatTotal(entry.mined)}</strong>
-                            </div>
-                            <div>
-                              <span>Active team</span>
-                              <strong>{entry.active}</strong>
-                            </div>
-                            <div>
-                              <span>Rate</span>
-                              <strong>{formatRate(entry.rate)}</strong>
-                            </div>
-                          </div>
-                        </article>
-                      ))
-                    ) : (
-                      <article className="leaderboard-row empty-state-card">
-                        <div className="leaderboard-user">
-                          <strong>No leaderboard data yet</strong>
-                          <span>Profiles will appear here as real miners join the network.</span>
-                        </div>
-                      </article>
-                    )}
                   </div>
                 </article>
               </section>
