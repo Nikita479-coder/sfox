@@ -810,11 +810,11 @@ textarea {
 
 .mining-ring-brand-mark {
   position: relative;
-  width: 82px;
-  height: 82px;
+  width: 92px;
+  height: 92px;
   opacity: 0.2;
   filter: saturate(1.08);
-  transform: translate(-1px, -2px);
+  transform: translate(-1px, -3px);
 }
 
 .mining-ring-brand-mark span {
@@ -828,26 +828,26 @@ textarea {
 }
 
 .mining-ring-brand-mark .news-logo-top {
-  width: 56px;
-  height: 13px;
-  top: 14px;
-  left: 13px;
+  width: 63px;
+  height: 14px;
+  top: 15px;
+  left: 14px;
   transform: skewX(-32deg);
 }
 
 .mining-ring-brand-mark .news-logo-mid {
-  width: 42px;
-  height: 12px;
-  top: 35px;
-  left: 19px;
+  width: 47px;
+  height: 13px;
+  top: 39px;
+  left: 22px;
   transform: skewX(-32deg);
 }
 
 .mining-ring-brand-mark .news-logo-stem {
-  width: 14px;
-  height: 39px;
-  top: 47px;
-  left: 31px;
+  width: 15px;
+  height: 43px;
+  top: 51px;
+  left: 36px;
   clip-path: polygon(0 0, 100% 0, 100% 68%, 28% 100%, 0 100%);
 }
 
