@@ -16,7 +16,7 @@ const rankOrder: Record<string, number> = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
-const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "Satyranetworkbot";
+const botUsername = Deno.env.get("TELEGRAM_BOT_USERNAME") ?? "tyranetworkbot";
 const adminAllowlist = String(Deno.env.get("Satyra_ADMIN_USERNAMES") ?? "")
   .split(",")
   .map((value) => value.trim().toLowerCase())

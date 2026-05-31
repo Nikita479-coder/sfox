@@ -15,8 +15,8 @@ function buildInviteCode(username, telegramUserId) {
 const TELEGRAM_IDENTITY_CACHE_KEY = "satyra-telegram-identity-cache";
 
 export const TELEGRAM_BOT_USERNAME =
-  sanitizeUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "Satyranetworkbot") ||
-  "Satyranetworkbot";
+  sanitizeUsername(import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "tyranetworkbot") ||
+  "tyranetworkbot";
 
 export function buildTelegramReferralLink(inviteCode) {
   const code = String(inviteCode || "").trim();
