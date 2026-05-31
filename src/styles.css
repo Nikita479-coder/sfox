@@ -837,12 +837,11 @@ textarea {
   place-items: center;
   border-radius: 50%;
   background:
-    radial-gradient(circle at center, rgba(32, 43, 66, 0.16), rgba(9, 12, 18, 0.9) 62%),
-    rgba(9, 12, 18, 0.88);
+    radial-gradient(circle at center, rgba(32, 43, 66, 0.1), rgba(17, 24, 38, 0.84) 66%),
+    rgba(17, 24, 38, 0.82);
   z-index: 1;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 10px 20px rgba(0, 0, 0, 0.18);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .mining-ring-center-mark {
@@ -858,7 +857,7 @@ textarea {
   position: relative;
   width: 76px;
   height: 76px;
-  opacity: 0.34;
+  opacity: 0.42;
   filter: saturate(1.12) drop-shadow(0 0 16px rgba(44, 103, 255, 0.14));
 }
 
@@ -876,7 +875,7 @@ textarea {
   position: relative;
   z-index: 2;
   text-align: center;
-  transform: translateY(10px);
+  transform: none;
 }
 
 .ring-readout strong,
