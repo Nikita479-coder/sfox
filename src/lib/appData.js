@@ -335,9 +335,8 @@ async function fetchAppSnapshot(profile, defaultState) {
     supabase
       .from("announcements")
       .select("*")
-      .eq("is_active", true)
       .order("published_at", { ascending: false })
-      .limit(1),
+      .limit(20),
     supabase
       .from("referrals")
       .select(
@@ -355,10 +354,15 @@ async function fetchAppSnapshot(profile, defaultState) {
   const mappedReferrals = (referralRows || []).map(mapReferralRow);
   const referralSummary = buildReferralSummary(mappedReferrals);
 
+  const mappedAnnouncements = (announcementRows || []).map(mapAnnouncementRow);
+  const currentAnnouncement =
+    mappedAnnouncements.find((entry) => entry.isActive) || mappedAnnouncements[0] || null;
+
   return {
     profileId: profile.id,
     state: mapProfileState(profile, referralSummary, defaultState, inviterRow),
-    announcement: announcementRows?.[0] ? mapAnnouncementRow(announcementRows[0]) : null,
+    announcement: currentAnnouncement,
+    announcements: mappedAnnouncements,
     referrals: mappedReferrals,
     leaderboard: [],
   };
@@ -378,9 +382,10 @@ export async function loadAppBootstrap(defaultState, identity = null) {
   if (!hasSupabaseConfig || !supabase) {
     return {
       usingSupabase: false,
-      state: null,
-      announcement: null,
-      referrals: [],
+    state: null,
+    announcement: null,
+    announcements: [],
+    referrals: [],
       };
   }
 
@@ -395,6 +400,7 @@ export async function loadAppBootstrap(defaultState, identity = null) {
     profileId: result.profileId,
     state: result.state,
     announcement: result.announcement,
+    announcements: result.announcements || (result.announcement ? [result.announcement] : []),
     referrals: result.referrals,
     protocol: result.protocol || null,
     isAdmin: Boolean(result.isAdmin),
@@ -571,6 +577,7 @@ export function subscribeToAppData({ profileId, defaultState, identity = null, o
         profileId: result.profileId,
         state: result.state,
         announcement: result.announcement,
+        announcements: result.announcements || (result.announcement ? [result.announcement] : []),
         referrals: result.referrals,
         protocol: result.protocol || null,
         isAdmin: Boolean(result.isAdmin),

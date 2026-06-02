@@ -522,6 +522,12 @@ textarea {
   margin-bottom: 14px;
 }
 
+.news-archive-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
 .news-cta,
 .news-bottom-button {
   min-height: 42px;
@@ -554,6 +560,10 @@ textarea {
   margin-top: 0;
   padding: 18px 16px 16px;
   text-align: left;
+}
+
+.news-post.archived {
+  background: rgba(9, 12, 18, 0.32);
 }
 
 .empty-state-card {

@@ -450,6 +450,7 @@ function App() {
   const [activityFilter, setActivityFilter] = useState("all");
   const [rankSort, setRankSort] = useState("desc");
   const [announcement, setAnnouncement] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
   const [databaseReferrals, setDatabaseReferrals] = useState([]);
   const [protocolSnapshot, setProtocolSnapshot] = useState(null);
   const [adminDashboard, setAdminDashboard] = useState(null);
@@ -586,6 +587,7 @@ function App() {
         }
 
         setAnnouncement(result.announcement || null);
+        setAnnouncements(result.announcements || (result.announcement ? [result.announcement] : []));
         setDatabaseReferrals(result.referrals || []);
         setProtocolSnapshot(result.protocol || null);
         setUsingSupabase(result.usingSupabase);
@@ -615,6 +617,7 @@ function App() {
       identity: telegramIdentity,
       onData: (result) => {
         setAnnouncement(result.announcement || null);
+        setAnnouncements(result.announcements || (result.announcement ? [result.announcement] : []));
         setDatabaseReferrals(result.referrals || []);
         setProtocolSnapshot(result.protocol || null);
         if (result.state) {
@@ -1189,6 +1192,7 @@ function App() {
       return rankSort === "asc" ? diff : -diff;
     });
   }, [activityFilter, rankSort, referrals]);
+  const olderAnnouncements = announcements.filter((item) => item.slug !== announcement?.slug);
   const activeReferralPercent =
     state.totalReferrals > 0
       ? Math.min(100, Math.round((state.activeReferrals / state.totalReferrals) * 100))
@@ -1370,6 +1374,21 @@ function App() {
                               <strong>{announcement.title}</strong>
                               <p>{announcement.body}</p>
                             </article>
+
+                            {olderAnnouncements.length ? (
+                              <div className="news-archive-list">
+                                {olderAnnouncements.map((item) => (
+                                  <article className="news-post inline archived" key={item.slug}>
+                                    <div className="news-post-top">
+                                      <span className="news-meta">{item.eyebrow}</span>
+                                      <small>{item.publishedLabel}</small>
+                                    </div>
+                                    <strong>{item.title}</strong>
+                                    <p>{item.body}</p>
+                                  </article>
+                                ))}
+                              </div>
+                            ) : null}
 
                             <div className="news-bottom-actions">
                               <button className="news-bottom-button" type="button" onClick={handleCopyReferralLink}>

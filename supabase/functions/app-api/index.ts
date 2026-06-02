@@ -560,9 +560,8 @@ async function fetchSnapshot(profile: any) {
     supabase
       .from("announcements")
       .select("*")
-      .eq("is_active", true)
       .order("published_at", { ascending: false })
-      .limit(1),
+      .limit(20),
     supabase
       .from("referrals")
       .select(
@@ -628,10 +627,15 @@ async function fetchSnapshot(profile: any) {
     snapshotProfile = updatedProfile;
   }
 
+  const mappedAnnouncements = (announcementRows || []).map(mapAnnouncementRow);
+  const currentAnnouncement =
+    mappedAnnouncements.find((entry) => entry.isActive) || mappedAnnouncements[0] || null;
+
   return {
     profileId: snapshotProfile.id,
     state: mapProfileState(snapshotProfile, referralSummary, inviterRow),
-    announcement: announcementRows?.[0] ? mapAnnouncementRow(announcementRows[0]) : null,
+    announcement: currentAnnouncement,
+    announcements: mappedAnnouncements,
     referrals: mappedReferrals,
     leaderboard: (leaderboardResult.data || []).map(mapLeaderboardRow),
     protocol,
