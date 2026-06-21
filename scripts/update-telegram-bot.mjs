@@ -83,6 +83,7 @@ await callTelegram("setMyCommands", {
     { command: "app", description: "Launch the Satyra Mini App" },
     { command: "invite", description: "Open your referral team and invite flow" },
     { command: "protocol", description: "Open protocol supply and epoch state" },
+    { command: "synctag", description: "Sync your TYRA member tag in a group" },
   ],
 });
 
@@ -98,7 +99,7 @@ await callTelegram("setMyDescription", {
 if (webhookUrl) {
   await callTelegram("setWebhook", {
     url: webhookUrl,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "chat_member", "my_chat_member"],
     drop_pending_updates: false,
   });
 }
@@ -116,7 +117,7 @@ console.log(
         url: miniAppUrl,
       },
       webhook_url: webhookUrl || null,
-      commands: ["start", "app", "invite", "protocol"],
+      commands: ["start", "app", "invite", "protocol", "synctag"],
     },
     null,
     2

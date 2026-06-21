@@ -2,9 +2,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 
 type TelegramUpdate = {
   message?: {
-    chat: { id: number };
+    chat: { id: number; type?: string };
     text?: string;
     from?: { id: number; username?: string; first_name?: string };
+    new_chat_members?: Array<{ id: number; username?: string; first_name?: string }>;
+  };
+  chat_member?: {
+    chat: { id: number; type?: string };
+    from?: { id: number; username?: string; first_name?: string };
+    new_chat_member?: {
+      user?: { id: number; username?: string; first_name?: string };
+      status?: string;
+      tag?: string;
+    };
+  };
+  my_chat_member?: {
+    chat: { id: number; type?: string };
+    new_chat_member?: {
+      status?: string;
+      can_manage_tags?: boolean;
+    };
   };
 };
 
@@ -79,12 +96,54 @@ async function getProfileByTelegramId(telegramUserId: number) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("invite_code, telegram_first_name, username")
+    .select("invite_code, telegram_first_name, username, current_rank")
     .eq("telegram_user_id", String(telegramUserId))
     .maybeSingle();
 
   if (error) throw error;
   return data;
+}
+
+function formatRankTag(rank: string | null | undefined) {
+  const normalized = String(rank || "miner").trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+async function getChatMember(chatId: number, userId: number) {
+  return telegramCall("getChatMember", {
+    chat_id: chatId,
+    user_id: userId,
+  });
+}
+
+async function setChatMemberTag(chatId: number, userId: number, tag: string) {
+  return telegramCall("setChatMemberTag", {
+    chat_id: chatId,
+    user_id: userId,
+    tag,
+  });
+}
+
+async function syncMemberRankTag(chatId: number, userId: number) {
+  const profile = await getProfileByTelegramId(userId);
+  if (!profile?.current_rank) {
+    return { ok: true, reason: "missing_profile" as const };
+  }
+
+  const member = await getChatMember(chatId, userId);
+  const existingTag = String(member?.tag || "").trim();
+  if (existingTag) {
+    return { ok: true, reason: "existing_tag" as const, tag: existingTag };
+  }
+
+  const rankTag = formatRankTag(profile.current_rank);
+  if (!rankTag) {
+    return { ok: true, reason: "missing_rank" as const };
+  }
+
+  await setChatMemberTag(chatId, userId, rankTag);
+  return { ok: true, reason: "tag_set" as const, tag: rankTag };
 }
 
 async function sendMessage(
@@ -123,14 +182,65 @@ Deno.serve(async (request) => {
 
   try {
     const update = (await request.json()) as TelegramUpdate;
+    const chatMemberUpdate = update.chat_member;
+    if (chatMemberUpdate?.chat?.id && chatMemberUpdate.new_chat_member?.user?.id) {
+      const memberStatus = String(chatMemberUpdate.new_chat_member.status || "");
+      if (memberStatus !== "left" && memberStatus !== "kicked") {
+        await syncMemberRankTag(
+          chatMemberUpdate.chat.id,
+          chatMemberUpdate.new_chat_member.user.id
+        );
+      }
+
+      return json({ ok: true, handled: "chat_member_tag_sync" });
+    }
+
+    const selfUpdate = update.my_chat_member;
+    if (selfUpdate?.chat?.id) {
+      return json({
+        ok: true,
+        handled: "my_chat_member",
+        can_manage_tags: Boolean(selfUpdate.new_chat_member?.can_manage_tags),
+      });
+    }
+
     const message = update.message;
-    if (!message?.text) {
+    if (!message) {
+      return json({ ok: true, ignored: true });
+    }
+
+    const chatId = message.chat.id;
+    const chatType = message.chat.type || "private";
+    const sender = message.from;
+
+    if (chatType !== "private" && sender?.id) {
+      try {
+        await syncMemberRankTag(chatId, sender.id);
+      } catch (error) {
+        console.error("Group member tag sync failed", error);
+      }
+    }
+
+    if (message.new_chat_members?.length) {
+      for (const member of message.new_chat_members) {
+        try {
+          await syncMemberRankTag(chatId, member.id);
+        } catch (error) {
+          console.error("New member tag sync failed", error);
+        }
+      }
+    }
+
+    if (!message.text) {
       return json({ ok: true, ignored: true });
     }
 
     const { command, payload } = parseCommand(message.text);
-    const chatId = message.chat.id;
-    const sender = message.from;
+    const isCommand = message.text.trim().startsWith("/");
+
+    if (chatType !== "private" && !isCommand) {
+      return json({ ok: true, ignored: "non_command_group_message" });
+    }
 
     if (command === "start") {
       const referralPayload = payload || "";
@@ -191,9 +301,26 @@ Deno.serve(async (request) => {
       return json({ ok: true, handled: "protocol" });
     }
 
+    if (command === "synctag" || command === "synctags") {
+      if (!sender?.id) {
+        return json({ ok: true, handled: "missing_sender" });
+      }
+
+      const result = await syncMemberRankTag(chatId, sender.id);
+      const syncText =
+        result.reason === "existing_tag"
+          ? `You already have a member tag: <b>${result.tag}</b>.`
+          : result.reason === "tag_set"
+            ? `Your TYRA member tag is now <b>${result.tag}</b>.`
+            : "No TYRA profile was found to sync a rank tag yet.";
+
+      await sendMessage(chatId, syncText);
+      return json({ ok: true, handled: "synctag", result });
+    }
+
     await sendMessage(
       chatId,
-      "Use /app to open Satyra, /invite for your referral page, or /protocol for network state.",
+      "Use /app to open Satyra, /invite for your referral page, /protocol for network state, or /synctag to sync your group tag.",
       webAppKeyboard("Open Satyra", buildAppUrl("news"))
     );
 
