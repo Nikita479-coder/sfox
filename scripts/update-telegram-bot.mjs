@@ -83,7 +83,7 @@ await callTelegram("setMyCommands", {
     { command: "app", description: "Launch the Satyra Mini App" },
     { command: "invite", description: "Open your referral team and invite flow" },
     { command: "protocol", description: "Open protocol supply and epoch state" },
-    { command: "synctag", description: "Sync your TYRA member tag in a group" },
+    { command: "synctag", description: "Sync TYRA member tags in a group" },
   ],
 });
 

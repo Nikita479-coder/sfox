@@ -104,6 +104,27 @@ async function getProfileByTelegramId(telegramUserId: number) {
   return data;
 }
 
+async function rememberGroupMember(
+  chatId: number,
+  user: { id: number; username?: string; first_name?: string } | null | undefined
+) {
+  if (!supabase || !user?.id) return;
+
+  const payload = {
+    chat_id: String(chatId),
+    telegram_user_id: String(user.id),
+    username: user.username || null,
+    first_name: user.first_name || null,
+    last_seen_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("telegram_group_members")
+    .upsert(payload, { onConflict: "chat_id,telegram_user_id" });
+
+  if (error) throw error;
+}
+
 function formatRankTag(rank: string | null | undefined) {
   const normalized = String(rank || "miner").trim().toLowerCase();
   if (!normalized) return "";
@@ -143,7 +164,64 @@ async function syncMemberRankTag(chatId: number, userId: number) {
   }
 
   await setChatMemberTag(chatId, userId, rankTag);
+
+  if (supabase) {
+    await supabase
+      .from("telegram_group_members")
+      .update({
+        tagged_at: new Date().toISOString(),
+      })
+      .eq("chat_id", String(chatId))
+      .eq("telegram_user_id", String(userId));
+  }
+
   return { ok: true, reason: "tag_set" as const, tag: rankTag };
+}
+
+async function isChatAdmin(chatId: number, userId: number) {
+  const member = await getChatMember(chatId, userId);
+  const status = String(member?.status || "");
+  return status === "administrator" || status === "creator";
+}
+
+async function syncKnownGroupMembers(chatId: number) {
+  if (!supabase) {
+    return { total: 0, tagged: 0, existing: 0, missing: 0 };
+  }
+
+  const { data, error } = await supabase
+    .from("telegram_group_members")
+    .select("telegram_user_id")
+    .eq("chat_id", String(chatId))
+    .order("last_seen_at", { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+
+  let tagged = 0;
+  let existing = 0;
+  let missing = 0;
+
+  for (const entry of data || []) {
+    const userId = Number(entry.telegram_user_id);
+    if (!userId) continue;
+
+    try {
+      const result = await syncMemberRankTag(chatId, userId);
+      if (result.reason === "tag_set") tagged += 1;
+      else if (result.reason === "existing_tag") existing += 1;
+      else missing += 1;
+    } catch (error) {
+      console.error("Bulk tag sync failed for member", userId, error);
+    }
+  }
+
+  return {
+    total: (data || []).length,
+    tagged,
+    existing,
+    missing,
+  };
 }
 
 async function sendMessage(
@@ -185,6 +263,7 @@ Deno.serve(async (request) => {
     const chatMemberUpdate = update.chat_member;
     if (chatMemberUpdate?.chat?.id && chatMemberUpdate.new_chat_member?.user?.id) {
       const memberStatus = String(chatMemberUpdate.new_chat_member.status || "");
+      await rememberGroupMember(chatMemberUpdate.chat.id, chatMemberUpdate.new_chat_member.user);
       if (memberStatus !== "left" && memberStatus !== "kicked") {
         await syncMemberRankTag(
           chatMemberUpdate.chat.id,
@@ -215,6 +294,12 @@ Deno.serve(async (request) => {
 
     if (chatType !== "private" && sender?.id) {
       try {
+        await rememberGroupMember(chatId, sender);
+      } catch (error) {
+        console.error("Group member remember failed", error);
+      }
+
+      try {
         await syncMemberRankTag(chatId, sender.id);
       } catch (error) {
         console.error("Group member tag sync failed", error);
@@ -223,6 +308,12 @@ Deno.serve(async (request) => {
 
     if (message.new_chat_members?.length) {
       for (const member of message.new_chat_members) {
+        try {
+          await rememberGroupMember(chatId, member);
+        } catch (error) {
+          console.error("New member remember failed", error);
+        }
+
         try {
           await syncMemberRankTag(chatId, member.id);
         } catch (error) {
@@ -304,6 +395,15 @@ Deno.serve(async (request) => {
     if (command === "synctag" || command === "synctags") {
       if (!sender?.id) {
         return json({ ok: true, handled: "missing_sender" });
+      }
+
+      if (chatType !== "private" && (await isChatAdmin(chatId, sender.id))) {
+        const summary = await syncKnownGroupMembers(chatId);
+        await sendMessage(
+          chatId,
+          `TYRA tag sync finished.\n\nSeen members: <b>${summary.total}</b>\nNew tags set: <b>${summary.tagged}</b>\nAlready tagged: <b>${summary.existing}</b>\nMissing TYRA profile: <b>${summary.missing}</b>`
+        );
+        return json({ ok: true, handled: "synctag_bulk", summary });
       }
 
       const result = await syncMemberRankTag(chatId, sender.id);
