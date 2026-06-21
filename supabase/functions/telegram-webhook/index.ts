@@ -189,20 +189,29 @@ async function syncKnownGroupMembers(chatId: number) {
     return { total: 0, tagged: 0, existing: 0, missing: 0 };
   }
 
-  const { data, error } = await supabase
-    .from("telegram_group_members")
-    .select("telegram_user_id")
-    .eq("chat_id", String(chatId))
-    .order("last_seen_at", { ascending: false })
-    .limit(500);
+  const rows = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("telegram_group_members")
+      .select("telegram_user_id")
+      .eq("chat_id", String(chatId))
+      .order("last_seen_at", { ascending: false })
+      .range(from, from + pageSize - 1);
 
-  if (error) throw error;
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
 
   let tagged = 0;
   let existing = 0;
   let missing = 0;
 
-  for (const entry of data || []) {
+  for (const entry of rows) {
     const userId = Number(entry.telegram_user_id);
     if (!userId) continue;
 
@@ -217,7 +226,7 @@ async function syncKnownGroupMembers(chatId: number) {
   }
 
   return {
-    total: (data || []).length,
+    total: rows.length,
     tagged,
     existing,
     missing,
